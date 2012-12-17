@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path="src"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.6"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/com.google.dart.java2dart"/>
+	<classpathentry kind="lib" path="lib/org.junit-3.8.2.jar" sourcepath="lib/org.junit-3.8.2-sources.jar"/>
+	<classpathentry kind="lib" path="lib/fest-assert-1.4.jar" sourcepath="lib/fest-assert-1.4-sources.jar"/>
+	<classpathentry kind="lib" path="lib/fest-util-1.1.6.jar" sourcepath="lib/fest-util-1.1.6-sources.jar"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>

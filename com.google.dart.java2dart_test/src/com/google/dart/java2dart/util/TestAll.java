@@ -11,7 +11,7 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-package com.google.dart.java2dart;
+package com.google.dart.java2dart.util;
 
 import junit.framework.Test;
 import junit.framework.TestSuite;
@@ -19,8 +19,7 @@ import junit.framework.TestSuite;
 public class TestAll {
   public static Test suite() {
     TestSuite suite = new TestSuite("Tests in " + TestAll.class.getPackage().getName());
-    suite.addTest(com.google.dart.java2dart.util.TestAll.suite());
-    suite.addTestSuite(SyntaxTest.class);
+    suite.addTestSuite(ExecutionUtilsTest.class);
     return suite;
   }
 }

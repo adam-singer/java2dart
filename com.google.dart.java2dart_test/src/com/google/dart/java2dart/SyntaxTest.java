@@ -56,6 +56,33 @@ public class SyntaxTest extends TestCase {
     assertDartSource("class A<K, V extends String> {A(K k, V v) {}}");
   }
 
+  public void test_expressionBinary() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  A() {",
+        "    int m1 = 0 + 1;",
+        "    int m2 = 0 - 1;",
+        "    int m3 = 0 * 1;",
+        "    int m4 = 0 / 1;",
+        "    int m5 = 0 % 1;",
+        "    int s1 = 0 << 1;",
+        "    int s2 = 0 >> 1;",
+        "    int s3 = 0 >>> 1;",
+        "    boolean c1 = false || true;",
+        "    boolean c2 = false && true;",
+        "    int b1 = 0 ^ 1;",
+        "    int b2 = 0 | 1;",
+        "    int b3 = 0 & 1;",
+        "  }",
+        "}");
+    assertDartSource("class A {A() {"
+        + "int m1 = 0 + 1; int m2 = 0 - 1; int m3 = 0 * 1; int m4 = 0 / 1; int m5 = 0 % 1; "
+        + "int s1 = 0 << 1; int s2 = 0 >> 1; int s3 = 0 >> 1; "
+        + "bool c1 = false || true; bool c2 = false && true; "
+        + "int b1 = 0 ^ 1; int b2 = 0 | 1; int b3 = 0 & 1;" + "}}");
+  }
+
   public void test_expressionCast() throws Exception {
     parseJava(
         "// filler filler filler filler filler filler filler filler filler filler",
@@ -65,6 +92,19 @@ public class SyntaxTest extends TestCase {
         "  }",
         "}");
     assertDartSource("class A {A() {int b = 0;}}");
+  }
+
+  public void test_expressionInstanceCreation() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  A(int p) {",
+        "  }",
+        "  void foo() {",
+        "    new A(123);",
+        "  }",
+        "}");
+    assertDartSource("class A {A(int p) {} void foo() {new A(123);}}");
   }
 
   public void test_expressionInvocation_qualified() throws Exception {
@@ -89,6 +129,36 @@ public class SyntaxTest extends TestCase {
         "  }",
         "}");
     assertDartSource("class A {A() {print(0); print(1);}}");
+  }
+
+  public void test_expressionPostfix() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  A() {",
+        "    int v = 0;",
+        "    int v1 = v++;",
+        "    int v2 = v--;",
+        "  }",
+        "}");
+    assertDartSource("class A {A() {int v = 0; int v1 = v++; int v2 = v--;}}");
+  }
+
+  public void test_expressionPrefix() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  A() {",
+        "    int v1 = +0;",
+        "    int v2 = -0;",
+        "    int v3 = ~0;",
+        "    int v4 = !0;",
+        "    int v5 = ++v1;",
+        "    int v6 = --v1;",
+        "  }",
+        "}");
+    assertDartSource("class A {A() {int v1 = 0; int v2 = -0; int v3 = ~0; int v4 = !0;"
+        + " int v5 = ++v1; int v6 = --v1;}}");
   }
 
   public void test_literalBoolean() throws Exception {

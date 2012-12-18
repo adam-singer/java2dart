@@ -74,13 +74,21 @@ public class SyntaxTest extends TestCase {
         "    int b1 = 0 ^ 1;",
         "    int b2 = 0 | 1;",
         "    int b3 = 0 & 1;",
+        "    boolean r1 = 0 < 1;",
+        "    boolean r2 = 0 > 1;",
+        "    boolean r3 = 0 <= 1;",
+        "    boolean r4 = 0 >= 1;",
+        "    boolean r5 = 0 == 1;",
+        "    boolean r6 = 0 != 1;",
         "  }",
         "}");
     assertDartSource("class A {A() {"
         + "int m1 = 0 + 1; int m2 = 0 - 1; int m3 = 0 * 1; int m4 = 0 / 1; int m5 = 0 % 1; "
         + "int s1 = 0 << 1; int s2 = 0 >> 1; int s3 = 0 >> 1; "
         + "bool c1 = false || true; bool c2 = false && true; "
-        + "int b1 = 0 ^ 1; int b2 = 0 | 1; int b3 = 0 & 1;" + "}}");
+        + "int b1 = 0 ^ 1; int b2 = 0 | 1; int b3 = 0 & 1; "
+        + "bool r1 = 0 < 1; bool r2 = 0 > 1; bool r3 = 0 <= 1; "
+        + "bool r4 = 0 >= 1; bool r5 = 0 == 1; bool r6 = 0 != 1;}}");
   }
 
   public void test_expressionCast() throws Exception {

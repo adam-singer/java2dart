@@ -230,8 +230,26 @@ public class Translator extends ASTVisitor {
     if (javaOperator == org.eclipse.jdt.core.dom.InfixExpression.Operator.AND) {
       tokenType = TokenType.AMPERSAND;
     }
+    if (javaOperator == org.eclipse.jdt.core.dom.InfixExpression.Operator.LESS) {
+      tokenType = TokenType.LT;
+    }
+    if (javaOperator == org.eclipse.jdt.core.dom.InfixExpression.Operator.GREATER) {
+      tokenType = TokenType.GT;
+    }
+    if (javaOperator == org.eclipse.jdt.core.dom.InfixExpression.Operator.LESS_EQUALS) {
+      tokenType = TokenType.LT_EQ;
+    }
+    if (javaOperator == org.eclipse.jdt.core.dom.InfixExpression.Operator.GREATER_EQUALS) {
+      tokenType = TokenType.GT_EQ;
+    }
+    if (javaOperator == org.eclipse.jdt.core.dom.InfixExpression.Operator.EQUALS) {
+      tokenType = TokenType.EQ_EQ;
+    }
+    if (javaOperator == org.eclipse.jdt.core.dom.InfixExpression.Operator.NOT_EQUALS) {
+      tokenType = TokenType.BANG_EQ;
+    }
     Assert.isNotNull(tokenType, "No token for: " + javaOperator);
-    // XXX
+    // done
     return done(new BinaryExpression(left, new Token(tokenType, 0), right));
   }
 

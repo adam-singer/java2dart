@@ -25,9 +25,11 @@ import com.google.dart.engine.ast.ClassDeclaration;
 import com.google.dart.engine.ast.ClassMember;
 import com.google.dart.engine.ast.CompilationUnit;
 import com.google.dart.engine.ast.ConstructorName;
+import com.google.dart.engine.ast.DoStatement;
 import com.google.dart.engine.ast.DoubleLiteral;
 import com.google.dart.engine.ast.Expression;
 import com.google.dart.engine.ast.ExpressionStatement;
+import com.google.dart.engine.ast.ForStatement;
 import com.google.dart.engine.ast.FormalParameterList;
 import com.google.dart.engine.ast.InstanceCreationExpression;
 import com.google.dart.engine.ast.IntegerLiteral;
@@ -45,6 +47,7 @@ import com.google.dart.engine.ast.TypeParameterList;
 import com.google.dart.engine.ast.VariableDeclaration;
 import com.google.dart.engine.ast.VariableDeclarationList;
 import com.google.dart.engine.ast.VariableDeclarationStatement;
+import com.google.dart.engine.ast.WhileStatement;
 import com.google.dart.engine.scanner.Keyword;
 import com.google.dart.engine.scanner.KeywordToken;
 import com.google.dart.engine.scanner.StringToken;
@@ -56,6 +59,7 @@ import com.google.dart.java2dart.util.RunnableEx;
 import org.apache.commons.lang3.StringUtils;
 import org.eclipse.core.runtime.Assert;
 import org.eclipse.jdt.core.dom.ASTVisitor;
+import org.eclipse.jdt.core.dom.Assignment;
 import org.eclipse.jdt.core.dom.SimpleName;
 import org.eclipse.jdt.core.dom.SimpleType;
 import org.eclipse.jdt.core.dom.SingleVariableDeclaration;
@@ -65,7 +69,7 @@ import java.util.Iterator;
 import java.util.List;
 
 /**
- * Translates Java to Dart source.
+ * Translates Java AST to Dart AST.
  */
 public class Translator extends ASTVisitor {
   /**
@@ -123,17 +127,48 @@ public class Translator extends ASTVisitor {
     return (T) translator.result;
   }
 
+  /**
+   * Translates given {@link List} of {@link org.eclipse.jdt.core.dom.Expression} to the
+   * {@link ArgumentList}.
+   */
   private static ArgumentList translateArgumentList(List<?> javaArguments) {
+    List<Expression> arguments = translateExpressionList(javaArguments);
+    return new ArgumentList(null, arguments, null);
+  }
+
+  /**
+   * Translates given {@link List} of {@link org.eclipse.jdt.core.dom.Expression} to the
+   * {@link List} of {@link Expression}s.
+   */
+  private static List<Expression> translateExpressionList(List<?> javaArguments) {
     List<Expression> arguments = Lists.newArrayList();
     for (Iterator<?> I = javaArguments.iterator(); I.hasNext();) {
       org.eclipse.jdt.core.dom.Expression javaArg = (org.eclipse.jdt.core.dom.Expression) I.next();
       Expression dartArg = translate(javaArg);
       arguments.add(dartArg);
     }
-    return new ArgumentList(null, arguments, null);
+    return arguments;
+  }
+
+  private static VariableDeclarationList traslateVariableDeclarationList(
+      org.eclipse.jdt.core.dom.Type javaType, List<?> javaVars) {
+    List<VariableDeclaration> variableDeclarations = Lists.newArrayList();
+    for (Iterator<?> I = javaVars.iterator(); I.hasNext();) {
+      org.eclipse.jdt.core.dom.VariableDeclarationFragment javaFragment = (org.eclipse.jdt.core.dom.VariableDeclarationFragment) I.next();
+      VariableDeclaration var = translate(javaFragment);
+      variableDeclarations.add(var);
+    }
+    return new VariableDeclarationList(null, (TypeName) translate(javaType), variableDeclarations);
   }
 
   private ASTNode result;
+
+  @Override
+  public boolean visit(Assignment node) {
+    Expression left = translate(node.getLeftHandSide());
+    Expression right = translate(node.getRightHandSide());
+    return done(new BinaryExpression(left, new Token(TokenType.EQ, 0), right));
+  }
 
   @Override
   public boolean visit(org.eclipse.jdt.core.dom.Block node) {
@@ -181,9 +216,63 @@ public class Translator extends ASTVisitor {
   }
 
   @Override
+  public boolean visit(org.eclipse.jdt.core.dom.DoStatement node) {
+    return done(new DoStatement(
+        null,
+        (Statement) translate(node.getBody()),
+        null,
+        null,
+        (Expression) translate(node.getExpression()),
+        null,
+        null));
+  }
+
+  @Override
   public boolean visit(org.eclipse.jdt.core.dom.ExpressionStatement node) {
     Expression expression = translate(node.getExpression());
     return done(new ExpressionStatement(expression, null));
+  }
+
+  @Override
+  public boolean visit(org.eclipse.jdt.core.dom.FieldDeclaration node) {
+    return done(new com.google.dart.engine.ast.FieldDeclaration(
+        null,
+        null,
+        null,
+        traslateVariableDeclarationList(node.getType(), node.fragments()),
+        null));
+  }
+
+  @Override
+  public boolean visit(org.eclipse.jdt.core.dom.ForStatement node) {
+    Object javaInitializer = node.initializers().get(0);
+    VariableDeclarationList variableList = null;
+    Expression initializer = null;
+    if (javaInitializer instanceof org.eclipse.jdt.core.dom.VariableDeclarationExpression) {
+      org.eclipse.jdt.core.dom.VariableDeclarationExpression javaVDE = (org.eclipse.jdt.core.dom.VariableDeclarationExpression) javaInitializer;
+      List<VariableDeclaration> variables = Lists.newArrayList();
+      for (Iterator<?> I = javaVDE.fragments().iterator(); I.hasNext();) {
+        org.eclipse.jdt.core.dom.VariableDeclarationFragment fragment = (org.eclipse.jdt.core.dom.VariableDeclarationFragment) I.next();
+        variables.add((VariableDeclaration) translate(fragment));
+      }
+      variableList = new VariableDeclarationList(
+          null,
+          (TypeName) translate(javaVDE.getType()),
+          variables);
+    } else {
+      initializer = translate((org.eclipse.jdt.core.dom.ASTNode) javaInitializer);
+    }
+    return done(new ForStatement(
+        null,
+        null,
+        variableList,
+        initializer,
+        null,
+        (Expression) translate(node.getExpression()),
+        null,
+        translateExpressionList(node.updaters()),
+        null,
+        (Statement) translate(node.getBody())));
   }
 
   @Override
@@ -429,15 +518,19 @@ public class Translator extends ASTVisitor {
 
   @Override
   public boolean visit(org.eclipse.jdt.core.dom.VariableDeclarationStatement node) {
-    VariableDeclarationStatement statement = new VariableDeclarationStatement();
-    statement.setVariables(new VariableDeclarationList());
-    statement.getVariables().setType((TypeName) translate(node.getType()));
-    for (Iterator<?> I = node.fragments().iterator(); I.hasNext();) {
-      org.eclipse.jdt.core.dom.VariableDeclarationFragment javaFragment = (org.eclipse.jdt.core.dom.VariableDeclarationFragment) I.next();
-      VariableDeclaration var = translate(javaFragment);
-      statement.getVariables().getVariables().add(var);
-    }
-    return done(statement);
+    return done(new VariableDeclarationStatement(traslateVariableDeclarationList(
+        node.getType(),
+        node.fragments()), null));
+  }
+
+  @Override
+  public boolean visit(org.eclipse.jdt.core.dom.WhileStatement node) {
+    return done(new WhileStatement(
+        null,
+        null,
+        (Expression) translate(node.getExpression()),
+        null,
+        (Statement) translate(node.getBody())));
   }
 
   @Override

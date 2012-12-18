@@ -56,6 +56,18 @@ public class SyntaxTest extends TestCase {
     assertDartSource("class A<K, V extends String> {A(K k, V v) {}}");
   }
 
+  public void test_expressionAssignment() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  A() {",
+        "    int v;",
+        "    v = 1;",
+        "  }",
+        "}");
+    assertDartSource("class A {A() {int v; v = 1;}}");
+  }
+
   public void test_expressionBinary() throws Exception {
     parseJava(
         "// filler filler filler filler filler filler filler filler filler filler",
@@ -169,6 +181,16 @@ public class SyntaxTest extends TestCase {
         + " int v5 = ++v1; int v6 = --v1;}}");
   }
 
+  public void test_field() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  int field;",
+        "  int f1 = 1, f2 = 2;",
+        "}");
+    assertDartSource("class A {int field; int f1 = 1, f2 = 2;}");
+  }
+
   public void test_literalBoolean() throws Exception {
     parseJava(
         "// filler filler filler filler filler filler filler filler filler filler",
@@ -249,6 +271,89 @@ public class SyntaxTest extends TestCase {
         "  }",
         "}");
     assertDartSource("class A {void foo() {}}");
+  }
+
+  /**
+   * We don't generate modifiers, everything is public!
+   */
+  public void test_modifiers_field() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  public int fPublic;",
+        "  protected int fProtected;",
+        "  int fDefault;",
+        "  private int fPrivate;",
+        "}");
+    assertDartSource("class A {int fPublic; int fProtected; int fDefault; int fPrivate;}");
+  }
+
+  /**
+   * We don't generate modifiers, everything is public!
+   */
+  public void test_modifiers_method() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  public void mPublic() {}",
+        "  protected void mProtected() {}",
+        "  void mDefault() {}",
+        "  private void mPrivate() {}",
+        "}");
+    assertDartSource("class A {void mPublic() {} void mProtected() {} void mDefault() {} void mPrivate() {}}");
+  }
+
+  public void test_statementDo() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  A() {",
+        "    do {",
+        "      print(0);",
+        "    } while (true);",
+        "  }",
+        "}");
+    assertDartSource("class A {A() {do {print(0);} while (true);}}");
+  }
+
+  public void test_statementFor() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  A() {",
+        "    for (int i = 0; i < 10; i++) {",
+        "      print(i);",
+        "    }",
+        "  }",
+        "}");
+    assertDartSource("class A {A() {for (int i = 0; i < 10; i++) {print(i);}}}");
+  }
+
+  public void test_statementFor2() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  A() {",
+        "    int i;",
+        "    for (i = 0; i < 10; i++) {",
+        "      print(i);",
+        "    }",
+        "  }",
+        "}");
+    assertDartSource("class A {A() {int i; for (i = 0; i < 10; i++) {print(i);}}}");
+  }
+
+  public void test_statementWhile() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  A() {",
+        "    while (true) {",
+        "      print(0);",
+        "    }",
+        "  }",
+        "}");
+    assertDartSource("class A {A() {while (true) {print(0);}}}");
   }
 
   public void test_typePrimitive() throws Exception {

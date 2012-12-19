@@ -27,6 +27,7 @@ import com.google.dart.engine.ast.CatchClause;
 import com.google.dart.engine.ast.ClassDeclaration;
 import com.google.dart.engine.ast.ClassMember;
 import com.google.dart.engine.ast.CompilationUnit;
+import com.google.dart.engine.ast.ConditionalExpression;
 import com.google.dart.engine.ast.ConstructorName;
 import com.google.dart.engine.ast.ContinueStatement;
 import com.google.dart.engine.ast.DoStatement;
@@ -38,17 +39,24 @@ import com.google.dart.engine.ast.ForEachStatement;
 import com.google.dart.engine.ast.ForStatement;
 import com.google.dart.engine.ast.FormalParameterList;
 import com.google.dart.engine.ast.IfStatement;
+import com.google.dart.engine.ast.IndexExpression;
 import com.google.dart.engine.ast.InstanceCreationExpression;
 import com.google.dart.engine.ast.IntegerLiteral;
+import com.google.dart.engine.ast.IsExpression;
 import com.google.dart.engine.ast.Label;
 import com.google.dart.engine.ast.LabeledStatement;
+import com.google.dart.engine.ast.ListLiteral;
 import com.google.dart.engine.ast.MethodDeclaration;
 import com.google.dart.engine.ast.MethodInvocation;
+import com.google.dart.engine.ast.NullLiteral;
+import com.google.dart.engine.ast.ParenthesizedExpression;
 import com.google.dart.engine.ast.PostfixExpression;
 import com.google.dart.engine.ast.PrefixExpression;
+import com.google.dart.engine.ast.PropertyAccess;
 import com.google.dart.engine.ast.ReturnStatement;
 import com.google.dart.engine.ast.SimpleFormalParameter;
 import com.google.dart.engine.ast.SimpleIdentifier;
+import com.google.dart.engine.ast.SimpleStringLiteral;
 import com.google.dart.engine.ast.Statement;
 import com.google.dart.engine.ast.SwitchCase;
 import com.google.dart.engine.ast.SwitchDefault;
@@ -117,6 +125,18 @@ public class Translator extends ASTVisitor {
     }
     Assert.isNotNull(resultMethod);
     return resultMethod;
+  }
+
+  private static TypeName newListType(TypeName elementType, int dimensions) {
+    TypeName listType = elementType;
+    for (int i = 0; i < dimensions; i++) {
+      TypeArgumentList typeArguments = new TypeArgumentList(
+          null,
+          Lists.newArrayList(listType),
+          null);
+      listType = new TypeName(newSimpleIdentifier("List"), typeArguments);
+    }
+    return listType;
   }
 
   private static SimpleIdentifier newSimpleIdentifier(org.eclipse.jdt.core.dom.SimpleName name) {
@@ -213,6 +233,34 @@ public class Translator extends ASTVisitor {
   }
 
   @Override
+  public boolean visit(org.eclipse.jdt.core.dom.ArrayAccess node) {
+    Expression expression = translate(node.getArray());
+    Expression index = translate(node.getIndex());
+    return done(new IndexExpression(expression, null, index, null));
+  }
+
+  @Override
+  public boolean visit(org.eclipse.jdt.core.dom.ArrayCreation node) {
+    TypeName listType = translate(node.getType());
+    TypeArgumentList typeArgs = listType.getTypeArguments();
+    List<Expression> elements = translateExpressionList(node.getInitializer().expressions());
+    return done(new ListLiteral(null, typeArgs, null, elements, null));
+  }
+
+  @Override
+  public boolean visit(org.eclipse.jdt.core.dom.ArrayInitializer node) {
+    List<Expression> elements = translateExpressionList(node.expressions());
+    return done(new ListLiteral(null, null, null, elements, null));
+  }
+
+  @Override
+  public boolean visit(org.eclipse.jdt.core.dom.ArrayType node) {
+    TypeName elementType = translate(node.getElementType());
+    int dimensions = node.getDimensions();
+    return done(newListType(elementType, dimensions));
+  }
+
+  @Override
   public boolean visit(org.eclipse.jdt.core.dom.AssertStatement node) {
     return done(new AssertStatement(
         null,
@@ -265,6 +313,13 @@ public class Translator extends ASTVisitor {
   }
 
   @Override
+  public boolean visit(org.eclipse.jdt.core.dom.CharacterLiteral node) {
+    int intValue = node.charValue();
+    String hexString = "0x" + Integer.toHexString(intValue);
+    return done(new IntegerLiteral(new StringToken(TokenType.INT, hexString, 0), 0));
+  }
+
+  @Override
   public boolean visit(org.eclipse.jdt.core.dom.ClassInstanceCreation node) {
     return done(new InstanceCreationExpression(
         new KeywordToken(Keyword.NEW, 0),
@@ -281,6 +336,16 @@ public class Translator extends ASTVisitor {
       unit.getDeclarations().add(dartClass);
     }
     return done(unit);
+  }
+
+  @Override
+  public boolean visit(org.eclipse.jdt.core.dom.ConditionalExpression node) {
+    return done(new ConditionalExpression(
+        (Expression) translate(node.getExpression()),
+        null,
+        (Expression) translate(node.getThenExpression()),
+        null,
+        (Expression) translate(node.getElseExpression())));
   }
 
   @Override
@@ -321,6 +386,15 @@ public class Translator extends ASTVisitor {
   public boolean visit(org.eclipse.jdt.core.dom.ExpressionStatement node) {
     Expression expression = translate(node.getExpression());
     return done(new ExpressionStatement(expression, null));
+  }
+
+  @Override
+  public boolean visit(org.eclipse.jdt.core.dom.FieldAccess node) {
+    Token operator = new Token(TokenType.PERIOD, 0);
+    return done(new PropertyAccess(
+        (Expression) translate(node.getExpression()),
+        operator,
+        (SimpleIdentifier) translate(node.getName())));
   }
 
   @Override
@@ -445,6 +519,15 @@ public class Translator extends ASTVisitor {
   }
 
   @Override
+  public boolean visit(org.eclipse.jdt.core.dom.InstanceofExpression node) {
+    return done(new IsExpression(
+        (Expression) translate(node.getLeftOperand()),
+        null,
+        null,
+        (TypeName) translate(node.getRightOperand())));
+  }
+
+  @Override
   public boolean visit(org.eclipse.jdt.core.dom.LabeledStatement node) {
     List<Label> labels = Lists.newArrayList();
     while (true) {
@@ -490,6 +573,11 @@ public class Translator extends ASTVisitor {
   }
 
   @Override
+  public boolean visit(org.eclipse.jdt.core.dom.NullLiteral node) {
+    return done(new NullLiteral(null));
+  }
+
+  @Override
   public boolean visit(org.eclipse.jdt.core.dom.NumberLiteral node) {
     String token = node.getToken();
     if (token.contains(".")
@@ -514,6 +602,12 @@ public class Translator extends ASTVisitor {
     return done(new TypeName(
         ((TypeName) translate(node.getType())).getName(),
         translateTypeArgumentList(node.typeArguments())));
+  }
+
+  @Override
+  public boolean visit(org.eclipse.jdt.core.dom.ParenthesizedExpression node) {
+    Expression expression = translate(node.getExpression());
+    return done(new ParenthesizedExpression(null, expression, null));
   }
 
   @Override
@@ -578,6 +672,15 @@ public class Translator extends ASTVisitor {
   }
 
   @Override
+  public boolean visit(org.eclipse.jdt.core.dom.QualifiedName node) {
+    Token operator = new Token(TokenType.PERIOD, 0);
+    return done(new PropertyAccess(
+        (Expression) translate(node.getQualifier()),
+        operator,
+        (SimpleIdentifier) translate(node.getName())));
+  }
+
+  @Override
   public boolean visit(org.eclipse.jdt.core.dom.ReturnStatement node) {
     return done(new ReturnStatement(null, (Expression) translate(node.getExpression()), null));
   }
@@ -590,6 +693,14 @@ public class Translator extends ASTVisitor {
         null,
         (TypeName) translate(node.getType()),
         newSimpleIdentifier(node.getName())));
+  }
+
+  @Override
+  public boolean visit(org.eclipse.jdt.core.dom.StringLiteral node) {
+    String tokenValue = node.getEscapedValue();
+    return done(new SimpleStringLiteral(
+        new StringToken(TokenType.STRING, tokenValue, 0),
+        node.getLiteralValue()));
   }
 
   @Override
@@ -681,6 +792,16 @@ public class Translator extends ASTVisitor {
       dartClass.getMembers().add(member);
     }
     return done(dartClass);
+  }
+
+  @Override
+  public boolean visit(org.eclipse.jdt.core.dom.TypeLiteral node) {
+    org.eclipse.jdt.core.dom.Type javaType = node.getType();
+    ASTNode result = null;
+    if (javaType instanceof org.eclipse.jdt.core.dom.SimpleType) {
+      result = translate(((org.eclipse.jdt.core.dom.SimpleType) javaType).getName());
+    }
+    return done(result);
   }
 
   @Override

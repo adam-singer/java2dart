@@ -60,6 +60,50 @@ public class SyntaxTest extends TestCase {
     assertDartSource("class A<K, V extends String> {A(K k, V v) {}}");
   }
 
+  public void test_expressionArrayAccess() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  A(String[] items) {",
+        "    print(items[0]);",
+        "  }",
+        "}");
+    assertDartSource("class A {A(List<String> items) {print(items[0]);}}");
+  }
+
+  public void test_expressionArrayCreation_dimensionOne() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  A() {",
+        "    Object v = new int[] {1, 2, 3};",
+        "  }",
+        "}");
+    assertDartSource("class A {A() {Object v = <int> [1, 2, 3];}}");
+  }
+
+  public void test_expressionArrayCreation_dimensionTwo() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  A() {",
+        "    Object v = new int[][] {new int[] {1, 2, 3}, new int[] {10, 20, 30}};",
+        "  }",
+        "}");
+    assertDartSource("class A {A() {Object v = <List<int>> [<int> [1, 2, 3], <int> [10, 20, 30]];}}");
+  }
+
+  public void test_expressionArrayInitializer() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  A() {",
+        "    int[] v = {1, 2, 3};",
+        "  }",
+        "}");
+    assertDartSource("class A {A() {List<int> v = [1, 2, 3];}}");
+  }
+
   public void test_expressionAssignment() throws Exception {
     parseJava(
         "// filler filler filler filler filler filler filler filler filler filler",
@@ -72,7 +116,68 @@ public class SyntaxTest extends TestCase {
     assertDartSource("class A {A() {int v; v = 1;}}");
   }
 
-  public void test_expressionBinary() throws Exception {
+  public void test_expressionCast_byte() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  A() {",
+        "    byte b = (byte) 0;",
+        "  }",
+        "}");
+    assertDartSource("class A {A() {int b = 0;}}");
+  }
+
+  public void test_expressionClassInstanceCreation() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  A(int p) {",
+        "  }",
+        "  void foo() {",
+        "    new A(123);",
+        "  }",
+        "}");
+    assertDartSource("class A {A(int p) {} void foo() {new A(123);}}");
+  }
+
+  public void test_expressionClassInstanceCreation_typeArguments() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A<K, V> {",
+        "}",
+        "public class B {",
+        "  B() {",
+        "    new A<String, B>();",
+        "  }",
+        "}",
+        "");
+    assertDartSource("class A<K, V> {} class B {B() {new A<String, B>();}}");
+  }
+
+  public void test_expressionConditional() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  A() {",
+        "    int v = true ? 1 : 2;",
+        "  }",
+        "}");
+    assertDartSource("class A {A() {int v = true ? 1 : 2;}}");
+  }
+
+  public void test_expressionFieldAccess_thisQualifier() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        " int field;",
+        "  A() {",
+        "    print(this.field);",
+        "  }",
+        "}");
+    assertDartSource("class A {int field; A() {print(this.field);}}");
+  }
+
+  public void test_expressionInfix() throws Exception {
     parseJava(
         "// filler filler filler filler filler filler filler filler filler filler",
         "public class A {",
@@ -107,42 +212,15 @@ public class SyntaxTest extends TestCase {
         + "bool r4 = 0 >= 1; bool r5 = 0 == 1; bool r6 = 0 != 1;}}");
   }
 
-  public void test_expressionCast() throws Exception {
+  public void test_expressionInstanceOf() throws Exception {
     parseJava(
         "// filler filler filler filler filler filler filler filler filler filler",
         "public class A {",
         "  A() {",
-        "    byte b = (byte) 0;",
+        "    boolean b = \"\" instanceof String;",
         "  }",
         "}");
-    assertDartSource("class A {A() {int b = 0;}}");
-  }
-
-  public void test_expressionInstanceCreation() throws Exception {
-    parseJava(
-        "// filler filler filler filler filler filler filler filler filler filler",
-        "public class A {",
-        "  A(int p) {",
-        "  }",
-        "  void foo() {",
-        "    new A(123);",
-        "  }",
-        "}");
-    assertDartSource("class A {A(int p) {} void foo() {new A(123);}}");
-  }
-
-  public void test_expressionInstanceCreation_typeArguments() throws Exception {
-    parseJava(
-        "// filler filler filler filler filler filler filler filler filler filler",
-        "public class A<K, V> {",
-        "}",
-        "public class B {",
-        "  B() {",
-        "    new A<String, B>();",
-        "  }",
-        "}",
-        "");
-    assertDartSource("class A<K, V> {} class B {B() {new A<String, B>();}}");
+    assertDartSource("class A {A() {bool b = \"\" is String;}}");
   }
 
   public void test_expressionInvocation_qualified() throws Exception {
@@ -167,6 +245,17 @@ public class SyntaxTest extends TestCase {
         "  }",
         "}");
     assertDartSource("class A {A() {print(0); print(1);}}");
+  }
+
+  public void test_expressionParenthesized() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  A() {",
+        "    int v = (1 + 3) / 2;",
+        "  }",
+        "}");
+    assertDartSource("class A {A() {int v = (1 + 3) / 2;}}");
   }
 
   public void test_expressionPostfix() throws Exception {
@@ -199,6 +288,31 @@ public class SyntaxTest extends TestCase {
         + " int v5 = ++v1; int v6 = --v1;}}");
   }
 
+  public void test_expressionQualifiedName_forField() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        " int field;",
+        "}",
+        "public class B {",
+        "  B(A a) {",
+        "    print(a.field);",
+        "  }",
+        "}");
+    assertDartSource("class A {int field;} class B {B(A a) {print(a.field);}}");
+  }
+
+  public void test_expressionThis() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  A() {",
+        "    print(this);",
+        "  }",
+        "}");
+    assertDartSource("class A {A() {print(this);}}");
+  }
+
   public void test_expressionThrow() throws Exception {
     parseJava(
         "// filler filler filler filler filler filler filler filler filler filler",
@@ -208,6 +322,18 @@ public class SyntaxTest extends TestCase {
         "  }",
         "}");
     assertDartSource("class A {A() {throw new Exception();}}");
+  }
+
+  public void test_expressionTypeLiteral() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  A() {",
+        "    print(A.class);",
+        "    print(my.company.project.A.class);",
+        "  }",
+        "}");
+    assertDartSource("class A {A() {print(A); print(my.company.project.A);}}");
   }
 
   public void test_field() throws Exception {
@@ -230,6 +356,17 @@ public class SyntaxTest extends TestCase {
         "  }",
         "}");
     assertDartSource("class A {A() {print(true); print(false);}}");
+  }
+
+  public void test_literalCharacter() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  A() {",
+        "    char c = '0';",
+        "  }",
+        "}");
+    assertDartSource("class A {A() {int c = 0x30;}}");
   }
 
   public void test_literalDouble() throws Exception {
@@ -270,6 +407,29 @@ public class SyntaxTest extends TestCase {
         "  }",
         "}");
     assertDartSource("class A {A() {print(0); print(1); print(0xDEAD); print(0xBEAF);}}");
+  }
+
+  public void test_literalNull() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  A() {",
+        "    print(null);",
+        "  }",
+        "}");
+    assertDartSource("class A {A() {print(null);}}");
+  }
+
+  public void test_literalString() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  A() {",
+        "    print(\"abc\");",
+        "    print(\"a'b\");",
+        "  }",
+        "}");
+    assertDartSource("class A {A() {print(\"abc\"); print(\"a'b\");}}");
   }
 
   public void test_methodEmpty() throws Exception {
@@ -591,6 +751,16 @@ public class SyntaxTest extends TestCase {
         "  }",
         "}");
     assertDartSource("class A {A() {while (true) {print(0);}}}");
+  }
+
+  public void test_typeArray() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  A(String[] items, String[][] labels) {",
+        "  }",
+        "}");
+    assertDartSource("class A {A(List<String> items, List<List<String>> labels) {}}");
   }
 
   public void test_typePrimitive() throws Exception {

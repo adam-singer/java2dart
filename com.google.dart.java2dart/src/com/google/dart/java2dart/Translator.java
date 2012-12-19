@@ -17,30 +17,47 @@ package com.google.dart.java2dart;
 import com.google.common.collect.Lists;
 import com.google.dart.engine.ast.ASTNode;
 import com.google.dart.engine.ast.ArgumentList;
+import com.google.dart.engine.ast.AssertStatement;
 import com.google.dart.engine.ast.BinaryExpression;
 import com.google.dart.engine.ast.Block;
 import com.google.dart.engine.ast.BlockFunctionBody;
 import com.google.dart.engine.ast.BooleanLiteral;
+import com.google.dart.engine.ast.BreakStatement;
+import com.google.dart.engine.ast.CatchClause;
 import com.google.dart.engine.ast.ClassDeclaration;
 import com.google.dart.engine.ast.ClassMember;
 import com.google.dart.engine.ast.CompilationUnit;
 import com.google.dart.engine.ast.ConstructorName;
+import com.google.dart.engine.ast.ContinueStatement;
 import com.google.dart.engine.ast.DoStatement;
 import com.google.dart.engine.ast.DoubleLiteral;
+import com.google.dart.engine.ast.EmptyStatement;
 import com.google.dart.engine.ast.Expression;
 import com.google.dart.engine.ast.ExpressionStatement;
+import com.google.dart.engine.ast.ForEachStatement;
 import com.google.dart.engine.ast.ForStatement;
 import com.google.dart.engine.ast.FormalParameterList;
+import com.google.dart.engine.ast.IfStatement;
 import com.google.dart.engine.ast.InstanceCreationExpression;
 import com.google.dart.engine.ast.IntegerLiteral;
+import com.google.dart.engine.ast.Label;
+import com.google.dart.engine.ast.LabeledStatement;
 import com.google.dart.engine.ast.MethodDeclaration;
 import com.google.dart.engine.ast.MethodInvocation;
 import com.google.dart.engine.ast.PostfixExpression;
 import com.google.dart.engine.ast.PrefixExpression;
+import com.google.dart.engine.ast.ReturnStatement;
 import com.google.dart.engine.ast.SimpleFormalParameter;
 import com.google.dart.engine.ast.SimpleIdentifier;
 import com.google.dart.engine.ast.Statement;
+import com.google.dart.engine.ast.SwitchCase;
+import com.google.dart.engine.ast.SwitchDefault;
+import com.google.dart.engine.ast.SwitchMember;
+import com.google.dart.engine.ast.SwitchStatement;
 import com.google.dart.engine.ast.ThisExpression;
+import com.google.dart.engine.ast.ThrowExpression;
+import com.google.dart.engine.ast.TryStatement;
+import com.google.dart.engine.ast.TypeArgumentList;
 import com.google.dart.engine.ast.TypeName;
 import com.google.dart.engine.ast.TypeParameter;
 import com.google.dart.engine.ast.TypeParameterList;
@@ -110,6 +127,13 @@ public class Translator extends ASTVisitor {
     return new SimpleIdentifier(new StringToken(TokenType.IDENTIFIER, name, 0));
   }
 
+  /**
+   * Recursively translates given {@link org.eclipse.jdt.core.dom.ASTNode} to Dart {@link ASTNode}.
+   * 
+   * @return the corresponding Dart {@link ASTNode}, may be <code>null</code> if <code>null</code>
+   *         argument was given; not <code>null</code> if argument is not <code>null</code> (if
+   *         translation is not implemented, exception will be thrown).
+   */
   @SuppressWarnings("unchecked")
   private static <T extends ASTNode> T translate(final org.eclipse.jdt.core.dom.ASTNode node) {
     if (node == null) {
@@ -150,6 +174,24 @@ public class Translator extends ASTVisitor {
     return arguments;
   }
 
+  /**
+   * Translates given {@link List} of {@link org.eclipse.jdt.core.dom.Type} to the
+   * {@link TypeArgumentList}.
+   */
+  private static TypeArgumentList translateTypeArgumentList(List<?> javaArguments) {
+    List<TypeName> arguments = Lists.newArrayList();
+    for (Iterator<?> I = javaArguments.iterator(); I.hasNext();) {
+      org.eclipse.jdt.core.dom.Type javaArg = (org.eclipse.jdt.core.dom.Type) I.next();
+      TypeName dartArg = translate(javaArg);
+      arguments.add(dartArg);
+    }
+    return new TypeArgumentList(null, arguments, null);
+  }
+
+  /**
+   * Translates given {@link List} of {@link org.eclipse.jdt.core.dom.VariableDeclarationFragment}
+   * to the {@link VariableDeclarationList}.
+   */
   private static VariableDeclarationList traslateVariableDeclarationList(
       org.eclipse.jdt.core.dom.Type javaType, List<?> javaVars) {
     List<VariableDeclaration> variableDeclarations = Lists.newArrayList();
@@ -171,22 +213,35 @@ public class Translator extends ASTVisitor {
   }
 
   @Override
+  public boolean visit(org.eclipse.jdt.core.dom.AssertStatement node) {
+    return done(new AssertStatement(
+        null,
+        null,
+        (Expression) translate(node.getExpression()),
+        null,
+        null));
+  }
+
+  @Override
   public boolean visit(org.eclipse.jdt.core.dom.Block node) {
-    Block block = new Block();
+    List<Statement> statements = Lists.newArrayList();
     for (Iterator<?> I = node.statements().iterator(); I.hasNext();) {
       org.eclipse.jdt.core.dom.Statement javaStatement = (org.eclipse.jdt.core.dom.Statement) I.next();
-      Statement statement = translate(javaStatement);
-      block.getStatements().add(statement);
+      statements.add((Statement) translate(javaStatement));
     }
-    return done(block);
+    return done(new Block(null, statements, null));
   }
 
   @Override
   public boolean visit(org.eclipse.jdt.core.dom.BooleanLiteral node) {
     boolean value = node.booleanValue();
     Token token = value ? new KeywordToken(Keyword.TRUE, 0) : new KeywordToken(Keyword.FALSE, 0);
-    BooleanLiteral literal = new BooleanLiteral(token, value);
-    return done(literal);
+    return done(new BooleanLiteral(token, value));
+  }
+
+  @Override
+  public boolean visit(org.eclipse.jdt.core.dom.BreakStatement node) {
+    return done(new BreakStatement(null, (SimpleIdentifier) translate(node.getLabel()), null));
   }
 
   @Override
@@ -196,12 +251,25 @@ public class Translator extends ASTVisitor {
   }
 
   @Override
+  public boolean visit(org.eclipse.jdt.core.dom.CatchClause node) {
+    return done(new CatchClause(
+        null,
+        (TypeName) translate(node.getException().getType()),
+        new StringToken(TokenType.IDENTIFIER, "catch", 0),
+        null,
+        newSimpleIdentifier(node.getException().getName()),
+        null,
+        null,
+        null,
+        (Block) translate(node.getBody())));
+  }
+
+  @Override
   public boolean visit(org.eclipse.jdt.core.dom.ClassInstanceCreation node) {
-    InstanceCreationExpression creation = new InstanceCreationExpression(
+    return done(new InstanceCreationExpression(
         new KeywordToken(Keyword.NEW, 0),
         new ConstructorName((TypeName) translate(node.getType()), null, null),
-        translateArgumentList(node.arguments()));
-    return done(creation);
+        translateArgumentList(node.arguments())));
   }
 
   @Override
@@ -216,6 +284,11 @@ public class Translator extends ASTVisitor {
   }
 
   @Override
+  public boolean visit(org.eclipse.jdt.core.dom.ContinueStatement node) {
+    return done(new ContinueStatement(null, (SimpleIdentifier) translate(node.getLabel()), null));
+  }
+
+  @Override
   public boolean visit(org.eclipse.jdt.core.dom.DoStatement node) {
     return done(new DoStatement(
         null,
@@ -225,6 +298,23 @@ public class Translator extends ASTVisitor {
         (Expression) translate(node.getExpression()),
         null,
         null));
+  }
+
+  @Override
+  public boolean visit(org.eclipse.jdt.core.dom.EmptyStatement node) {
+    return done(new EmptyStatement(null));
+  }
+
+  @Override
+  public boolean visit(org.eclipse.jdt.core.dom.EnhancedForStatement node) {
+    return done(new ForEachStatement(
+        null,
+        null,
+        (SimpleFormalParameter) translate(node.getParameter()),
+        null,
+        (Expression) translate(node.getExpression()),
+        null,
+        (Statement) translate(node.getBody())));
   }
 
   @Override
@@ -273,6 +363,18 @@ public class Translator extends ASTVisitor {
         translateExpressionList(node.updaters()),
         null,
         (Statement) translate(node.getBody())));
+  }
+
+  @Override
+  public boolean visit(org.eclipse.jdt.core.dom.IfStatement node) {
+    return done(new IfStatement(
+        null,
+        null,
+        (Expression) translate(node.getExpression()),
+        null,
+        (Statement) translate(node.getThenStatement()),
+        null,
+        (Statement) translate(node.getElseStatement())));
   }
 
   @Override
@@ -343,6 +445,20 @@ public class Translator extends ASTVisitor {
   }
 
   @Override
+  public boolean visit(org.eclipse.jdt.core.dom.LabeledStatement node) {
+    List<Label> labels = Lists.newArrayList();
+    while (true) {
+      labels.add(new Label((SimpleIdentifier) translate(node.getLabel()), null));
+      if (node.getBody() instanceof org.eclipse.jdt.core.dom.LabeledStatement) {
+        node = (org.eclipse.jdt.core.dom.LabeledStatement) node.getBody();
+      } else {
+        break;
+      }
+    }
+    return done(new LabeledStatement(labels, (Statement) translate(node.getBody())));
+  }
+
+  @Override
   public boolean visit(org.eclipse.jdt.core.dom.MethodDeclaration node) {
     // parameters
     FormalParameterList parameterList = new FormalParameterList();
@@ -391,6 +507,13 @@ public class Translator extends ASTVisitor {
       IntegerLiteral literal = new IntegerLiteral(new StringToken(TokenType.INT, token, 0), 0);
       return done(literal);
     }
+  }
+
+  @Override
+  public boolean visit(org.eclipse.jdt.core.dom.ParameterizedType node) {
+    return done(new TypeName(
+        ((TypeName) translate(node.getType())).getName(),
+        translateTypeArgumentList(node.typeArguments())));
   }
 
   @Override
@@ -455,17 +578,83 @@ public class Translator extends ASTVisitor {
   }
 
   @Override
+  public boolean visit(org.eclipse.jdt.core.dom.ReturnStatement node) {
+    return done(new ReturnStatement(null, (Expression) translate(node.getExpression()), null));
+  }
+
+  @Override
   public boolean visit(org.eclipse.jdt.core.dom.SingleVariableDeclaration node) {
-    SimpleFormalParameter parameter = new SimpleFormalParameter();
-    parameter.setIdentifier(newSimpleIdentifier(node.getName()));
-    TypeName type = translate(node.getType());
-    parameter.setType(type);
-    return done(parameter);
+    return done(new SimpleFormalParameter(
+        null,
+        null,
+        null,
+        (TypeName) translate(node.getType()),
+        newSimpleIdentifier(node.getName())));
+  }
+
+  @Override
+  public boolean visit(org.eclipse.jdt.core.dom.SwitchStatement node) {
+    List<SwitchMember> members = Lists.newArrayList();
+    {
+      SwitchMember switchCase = null;
+      for (Iterator<?> I = node.statements().iterator(); I.hasNext();) {
+        Object javaMember = I.next();
+        if (javaMember instanceof org.eclipse.jdt.core.dom.SwitchCase) {
+          org.eclipse.jdt.core.dom.SwitchCase javaCase = (org.eclipse.jdt.core.dom.SwitchCase) javaMember;
+          Expression switchExpr = translate(javaCase.getExpression());
+          if (switchExpr != null) {
+            switchCase = new SwitchCase(null, null, switchExpr, null, null);
+          } else {
+            switchCase = new SwitchDefault(null, null, null, null);
+          }
+          members.add(switchCase);
+        } else {
+          Assert.isTrue(switchCase != null);
+          switchCase.getStatements().add(
+              (Statement) translate((org.eclipse.jdt.core.dom.Statement) javaMember));
+        }
+      }
+    }
+    return done(new SwitchStatement(
+        null,
+        null,
+        (Expression) translate(node.getExpression()),
+        null,
+        null,
+        members,
+        null));
+  }
+
+  @Override
+  public boolean visit(org.eclipse.jdt.core.dom.SynchronizedStatement node) {
+    return visit(node.getBody());
   }
 
   @Override
   public boolean visit(org.eclipse.jdt.core.dom.ThisExpression node) {
     return done(new ThisExpression());
+  }
+
+  @Override
+  public boolean visit(org.eclipse.jdt.core.dom.ThrowStatement node) {
+    return done(new ExpressionStatement(new ThrowExpression(
+        null,
+        (Expression) translate(node.getExpression())), null));
+  }
+
+  @Override
+  public boolean visit(org.eclipse.jdt.core.dom.TryStatement node) {
+    List<CatchClause> catchClauses = Lists.newArrayList();
+    for (Iterator<?> I = node.catchClauses().iterator(); I.hasNext();) {
+      org.eclipse.jdt.core.dom.CatchClause javaCatch = (org.eclipse.jdt.core.dom.CatchClause) I.next();
+      catchClauses.add((CatchClause) translate(javaCatch));
+    }
+    return done(new TryStatement(
+        null,
+        (Block) translate(node.getBody()),
+        catchClauses,
+        null,
+        (Block) translate(node.getFinally())));
   }
 
   @Override
@@ -510,10 +699,12 @@ public class Translator extends ASTVisitor {
 
   @Override
   public boolean visit(org.eclipse.jdt.core.dom.VariableDeclarationFragment node) {
-    VariableDeclaration var = new VariableDeclaration();
-    var.setName(newSimpleIdentifier(node.getName()));
-    var.setInitializer((Expression) translate(node.getInitializer()));
-    return done(var);
+    return done(new VariableDeclaration(
+        null,
+        null,
+        newSimpleIdentifier(node.getName()),
+        null,
+        (Expression) translate(node.getInitializer())));
   }
 
   @Override
@@ -540,8 +731,7 @@ public class Translator extends ASTVisitor {
 
   @Override
   public boolean visit(SimpleType node) {
-    TypeName type = new TypeName(newSimpleIdentifier(node.getName().toString()), null);
-    return done(type);
+    return done(new TypeName(newSimpleIdentifier(node.getName().toString()), null));
   }
 
   /**

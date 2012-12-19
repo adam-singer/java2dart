@@ -15,12 +15,16 @@
 package com.google.dart.java2dart;
 
 import com.google.common.base.Joiner;
+import com.google.common.collect.ImmutableMap;
 
 import junit.framework.TestCase;
 
+import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.dom.AST;
 import org.eclipse.jdt.core.dom.ASTParser;
 import org.eclipse.jdt.core.dom.CompilationUnit;
+
+import static org.fest.assertions.Assertions.assertThat;
 
 /**
  * Test that we can translate Java syntax to Dart syntax.
@@ -127,6 +131,20 @@ public class SyntaxTest extends TestCase {
     assertDartSource("class A {A(int p) {} void foo() {new A(123);}}");
   }
 
+  public void test_expressionInstanceCreation_typeArguments() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A<K, V> {",
+        "}",
+        "public class B {",
+        "  B() {",
+        "    new A<String, B>();",
+        "  }",
+        "}",
+        "");
+    assertDartSource("class A<K, V> {} class B {B() {new A<String, B>();}}");
+  }
+
   public void test_expressionInvocation_qualified() throws Exception {
     parseJava(
         "// filler filler filler filler filler filler filler filler filler filler",
@@ -179,6 +197,17 @@ public class SyntaxTest extends TestCase {
         "}");
     assertDartSource("class A {A() {int v1 = 0; int v2 = -0; int v3 = ~0; int v4 = !0;"
         + " int v5 = ++v1; int v6 = --v1;}}");
+  }
+
+  public void test_expressionThrow() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  A() {",
+        "    throw new Exception();",
+        "  }",
+        "}");
+    assertDartSource("class A {A() {throw new Exception();}}");
   }
 
   public void test_field() throws Exception {
@@ -303,6 +332,69 @@ public class SyntaxTest extends TestCase {
     assertDartSource("class A {void mPublic() {} void mProtected() {} void mDefault() {} void mPrivate() {}}");
   }
 
+  public void test_statementAssert() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  A() {",
+        "    assert 1 == 2;",
+        "  }",
+        "}");
+    assertDartSource("class A {A() {assert (1 == 2);}}");
+  }
+
+  public void test_statementBreak() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  A() {",
+        "    while (true) {",
+        "      break;",
+        "    }",
+        "  }",
+        "}");
+    assertDartSource("class A {A() {while (true) {break;}}}");
+  }
+
+  public void test_statementBreak_withLabel() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  A() {",
+        "   L: L2: while (true) {",
+        "      break L;",
+        "    }",
+        "  }",
+        "}");
+    assertDartSource("class A {A() {L: L2: while (true) {break L;}}}");
+  }
+
+  public void test_statementContinue() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  A() {",
+        "    while (true) {",
+        "      continue;",
+        "    }",
+        "  }",
+        "}");
+    assertDartSource("class A {A() {while (true) {continue;}}}");
+  }
+
+  public void test_statementContinue_withLabel() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  A() {",
+        "   L: L2: while (true) {",
+        "      continue L;",
+        "    }",
+        "  }",
+        "}");
+    assertDartSource("class A {A() {L: L2: while (true) {continue L;}}}");
+  }
+
   public void test_statementDo() throws Exception {
     parseJava(
         "// filler filler filler filler filler filler filler filler filler filler",
@@ -314,6 +406,18 @@ public class SyntaxTest extends TestCase {
         "  }",
         "}");
     assertDartSource("class A {A() {do {print(0);} while (true);}}");
+  }
+
+  public void test_statementEmpty() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  A() {",
+        "    ;",
+        "    ;",
+        "  }",
+        "}");
+    assertDartSource("class A {A() {; ;}}");
   }
 
   public void test_statementFor() throws Exception {
@@ -341,6 +445,139 @@ public class SyntaxTest extends TestCase {
         "  }",
         "}");
     assertDartSource("class A {A() {int i; for (i = 0; i < 10; i++) {print(i);}}}");
+  }
+
+  public void test_statementForEach() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  A(Iterable<String> items) {",
+        "    for (String item: items) {",
+        "      print(item);",
+        "    }",
+        "  }",
+        "}");
+    assertDartSource("class A {A(Iterable<String> items) {for (String item in items) {print(item);}}}");
+  }
+
+  public void test_statementIf() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  A() {",
+        "    if (1 == 1) {",
+        "      print(0);",
+        "    }",
+        "  }",
+        "}");
+    assertDartSource("class A {A() {if (1 == 1) {print(0);}}}");
+  }
+
+  public void test_statementIfElse() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  A() {",
+        "    if (1 == 1) {",
+        "      print(1);",
+        "    } else {",
+        "      print(2);",
+        "    }",
+        "  }",
+        "}");
+    assertDartSource("class A {A() {if (1 == 1) {print(1);} else {print(2);}}}");
+  }
+
+  public void test_statementReturn() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  int foo() {",
+        "    return 42;",
+        "  }",
+        "}");
+    assertDartSource("class A {int foo() {return 42;}}");
+  }
+
+  public void test_statementSwitch() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  A() {",
+        "    switch (0) {",
+        "      case 1:",
+        "        print(1);",
+        "        break;",
+        "      case 2:",
+        "      case 3:",
+        "        print(2);",
+        "        break;",
+        "      default:",
+        "        print(3);",
+        "        break;",
+        "    }",
+        "  }",
+        "}");
+    assertDartSource("class A {A() {switch (0) {"
+        + "case 1: print(1); break; case 2:  case 3: print(2); break; default: print(3); break;}}}");
+  }
+
+  public void test_statementSynchronized() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  A() {",
+        "    synchronized (this) {",
+        "      print(0);",
+        "    }",
+        "  }",
+        "}");
+    assertDartSource("class A {A() {{print(0);}}}");
+  }
+
+  public void test_statementTry_catch() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  A() {",
+        "    try {",
+        "      print(0);",
+        "    } catch (E1 e) {",
+        "      print(1);",
+        "    } catch (E2 e) {",
+        "      print(2);",
+        "    }",
+        "  }",
+        "}");
+    assertDartSource("class A {A() {try {print(0);}"
+        + " on E1 catch (e) {print(1);} on E2 catch (e) {print(2);}}}");
+  }
+
+  public void test_statementTry_finally() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  A() {",
+        "    try {",
+        "      print(1);",
+        "    } finally {",
+        "      print(2);",
+        "    }",
+        "  }",
+        "}");
+    assertDartSource("class A {A() {try {print(1);} finally {print(2);}}}");
+  }
+
+  public void test_statementVariableDeclaration() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  A() {",
+        "    int a = 1;",
+        "    int b = 2, c = 3;",
+        "  }",
+        "}");
+    assertDartSource("class A {A() {int a = 1; int b = 2, c = 3;}}");
   }
 
   public void test_statementWhile() throws Exception {
@@ -396,7 +633,9 @@ public class SyntaxTest extends TestCase {
   private void parseJava(String... lines) {
     String source = Joiner.on("\n").join(lines);
     ASTParser parser = ASTParser.newParser(AST.JLS4);
+    parser.setCompilerOptions(ImmutableMap.of(JavaCore.COMPILER_SOURCE, JavaCore.VERSION_1_5));
     parser.setSource(source.toCharArray());
     javaUnit = (CompilationUnit) parser.createAST(null);
+    assertThat(javaUnit.getProblems()).isEmpty();
   }
 }

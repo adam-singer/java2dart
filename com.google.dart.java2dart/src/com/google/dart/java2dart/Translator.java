@@ -32,12 +32,14 @@ import com.google.dart.engine.ast.ConstructorName;
 import com.google.dart.engine.ast.ContinueStatement;
 import com.google.dart.engine.ast.DoStatement;
 import com.google.dart.engine.ast.DoubleLiteral;
+import com.google.dart.engine.ast.EmptyFunctionBody;
 import com.google.dart.engine.ast.EmptyStatement;
 import com.google.dart.engine.ast.Expression;
 import com.google.dart.engine.ast.ExpressionStatement;
 import com.google.dart.engine.ast.ForEachStatement;
 import com.google.dart.engine.ast.ForStatement;
 import com.google.dart.engine.ast.FormalParameterList;
+import com.google.dart.engine.ast.FunctionBody;
 import com.google.dart.engine.ast.IfStatement;
 import com.google.dart.engine.ast.IndexExpression;
 import com.google.dart.engine.ast.InstanceCreationExpression;
@@ -85,6 +87,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.eclipse.core.runtime.Assert;
 import org.eclipse.jdt.core.dom.ASTVisitor;
 import org.eclipse.jdt.core.dom.Assignment;
+import org.eclipse.jdt.core.dom.Modifier;
 import org.eclipse.jdt.core.dom.SimpleName;
 import org.eclipse.jdt.core.dom.SimpleType;
 import org.eclipse.jdt.core.dom.SingleVariableDeclaration;
@@ -551,6 +554,12 @@ public class Translator extends ASTVisitor {
       parameterList.getParameters().add(parameter);
     }
     // done
+    FunctionBody body;
+    if (node.getBody() != null) {
+      body = new BlockFunctionBody((Block) translate(node.getBody()));
+    } else {
+      body = new EmptyFunctionBody(null);
+    }
     return done(new MethodDeclaration(
         null,
         null,
@@ -561,7 +570,7 @@ public class Translator extends ASTVisitor {
         null,
         newSimpleIdentifier(node.getName()),
         parameterList,
-        new BlockFunctionBody((Block) translate(node.getBody()))));
+        body));
   }
 
   @Override
@@ -698,6 +707,7 @@ public class Translator extends ASTVisitor {
   @Override
   public boolean visit(org.eclipse.jdt.core.dom.StringLiteral node) {
     String tokenValue = node.getEscapedValue();
+    tokenValue = StringUtils.replace(tokenValue, "$", "\\$");
     return done(new SimpleStringLiteral(
         new StringToken(TokenType.STRING, tokenValue, 0),
         node.getLiteralValue()));
@@ -771,6 +781,10 @@ public class Translator extends ASTVisitor {
   @Override
   public boolean visit(org.eclipse.jdt.core.dom.TypeDeclaration node) {
     ClassDeclaration dartClass = new ClassDeclaration();
+    // interface
+    if (node.isInterface() || Modifier.isAbstract(node.getModifiers())) {
+      dartClass.setAbstractKeyword(new KeywordToken(Keyword.ABSTRACT, 0));
+    }
     // name
     dartClass.setName(newSimpleIdentifier(node.getName()));
     // type parameters

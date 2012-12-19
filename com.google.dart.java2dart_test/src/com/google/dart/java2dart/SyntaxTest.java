@@ -42,6 +42,14 @@ public class SyntaxTest extends TestCase {
 
   private com.google.dart.engine.ast.CompilationUnit dartUnit;
 
+  public void test_classAbstract() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public abstract class A {",
+        "}");
+    assertDartSource("abstract class A {}");
+  }
+
   public void test_classEmpty() throws Exception {
     parseJava(
         "// filler filler filler filler filler filler filler filler filler filler",
@@ -346,6 +354,16 @@ public class SyntaxTest extends TestCase {
     assertDartSource("class A {int field; int f1 = 1, f2 = 2;}");
   }
 
+  public void test_interface() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "interface A {",
+        "  int foo();",
+        "  void bar();",
+        "}");
+    assertDartSource("abstract class A {int foo(); void bar();}");
+  }
+
   public void test_literalBoolean() throws Exception {
     parseJava(
         "// filler filler filler filler filler filler filler filler filler filler",
@@ -432,6 +450,17 @@ public class SyntaxTest extends TestCase {
     assertDartSource("class A {A() {print(\"abc\"); print(\"a'b\");}}");
   }
 
+  public void test_literalString_escapeInterpolation() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  A() {",
+        "    print(\"a$b\");",
+        "  }",
+        "}");
+    assertDartSource("class A {A() {print(\"a\\$b\");}}");
+  }
+
   public void test_methodEmpty() throws Exception {
     parseJava(
         "// filler filler filler filler filler filler filler filler filler filler",
@@ -500,7 +529,7 @@ public class SyntaxTest extends TestCase {
         "    assert 1 == 2;",
         "  }",
         "}");
-    assertDartSource("class A {A() {assert (1 == 2);}}");
+    assertDartSource("class A {A() {assert(1 == 2);}}");
   }
 
   public void test_statementBreak() throws Exception {

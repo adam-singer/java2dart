@@ -75,6 +75,7 @@ import com.google.dart.engine.ast.IsExpression;
 import com.google.dart.engine.ast.Label;
 import com.google.dart.engine.ast.LabeledStatement;
 import com.google.dart.engine.ast.LibraryDirective;
+import com.google.dart.engine.ast.LibraryIdentifier;
 import com.google.dart.engine.ast.ListLiteral;
 import com.google.dart.engine.ast.MapLiteral;
 import com.google.dart.engine.ast.MapLiteralEntry;
@@ -683,6 +684,12 @@ public class ToFormattedSourceVisitor implements ASTVisitor<Void> {
     writer.print("library ");
     visit(node.getName());
     writer.print(';');
+    return null;
+  }
+
+  @Override
+  public Void visitLibraryIdentifier(LibraryIdentifier node) {
+    writer.print(node.getName());
     return null;
   }
 

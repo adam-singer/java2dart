@@ -27,20 +27,25 @@ import com.google.dart.engine.ast.CatchClause;
 import com.google.dart.engine.ast.ClassDeclaration;
 import com.google.dart.engine.ast.ClassMember;
 import com.google.dart.engine.ast.CompilationUnit;
+import com.google.dart.engine.ast.CompilationUnitMember;
 import com.google.dart.engine.ast.ConditionalExpression;
 import com.google.dart.engine.ast.ConstructorName;
 import com.google.dart.engine.ast.ContinueStatement;
+import com.google.dart.engine.ast.Directive;
 import com.google.dart.engine.ast.DoStatement;
 import com.google.dart.engine.ast.DoubleLiteral;
 import com.google.dart.engine.ast.EmptyFunctionBody;
 import com.google.dart.engine.ast.EmptyStatement;
 import com.google.dart.engine.ast.Expression;
 import com.google.dart.engine.ast.ExpressionStatement;
+import com.google.dart.engine.ast.ExtendsClause;
 import com.google.dart.engine.ast.ForEachStatement;
 import com.google.dart.engine.ast.ForStatement;
+import com.google.dart.engine.ast.FormalParameter;
 import com.google.dart.engine.ast.FormalParameterList;
 import com.google.dart.engine.ast.FunctionBody;
 import com.google.dart.engine.ast.IfStatement;
+import com.google.dart.engine.ast.ImplementsClause;
 import com.google.dart.engine.ast.IndexExpression;
 import com.google.dart.engine.ast.InstanceCreationExpression;
 import com.google.dart.engine.ast.IntegerLiteral;
@@ -332,13 +337,14 @@ public class Translator extends ASTVisitor {
 
   @Override
   public boolean visit(org.eclipse.jdt.core.dom.CompilationUnit node) {
-    CompilationUnit unit = new CompilationUnit();
+    List<Directive> directives = Lists.newArrayList();
+    List<CompilationUnitMember> declarations = Lists.newArrayList();
     for (Iterator<?> I = node.types().iterator(); I.hasNext();) {
       org.eclipse.jdt.core.dom.TypeDeclaration javaType = (org.eclipse.jdt.core.dom.TypeDeclaration) I.next();
       ClassDeclaration dartClass = translate(javaType);
-      unit.getDeclarations().add(dartClass);
+      declarations.add(dartClass);
     }
-    return done(unit);
+    return done(new CompilationUnit(null, null, directives, declarations, null));
   }
 
   @Override
@@ -547,11 +553,15 @@ public class Translator extends ASTVisitor {
   @Override
   public boolean visit(org.eclipse.jdt.core.dom.MethodDeclaration node) {
     // parameters
-    FormalParameterList parameterList = new FormalParameterList();
-    for (Iterator<?> I = node.parameters().iterator(); I.hasNext();) {
-      org.eclipse.jdt.core.dom.SingleVariableDeclaration javaParameter = (SingleVariableDeclaration) I.next();
-      SimpleFormalParameter parameter = translate(javaParameter);
-      parameterList.getParameters().add(parameter);
+    FormalParameterList parameterList;
+    {
+      List<FormalParameter> parameters = Lists.newArrayList();
+      for (Iterator<?> I = node.parameters().iterator(); I.hasNext();) {
+        org.eclipse.jdt.core.dom.SingleVariableDeclaration javaParameter = (SingleVariableDeclaration) I.next();
+        SimpleFormalParameter parameter = translate(javaParameter);
+        parameters.add(parameter);
+      }
+      parameterList = new FormalParameterList(null, parameters, null, null, null);
     }
     // done
     FunctionBody body;
@@ -753,7 +763,7 @@ public class Translator extends ASTVisitor {
 
   @Override
   public boolean visit(org.eclipse.jdt.core.dom.ThisExpression node) {
-    return done(new ThisExpression());
+    return done(new ThisExpression(new KeywordToken(Keyword.THIS, 0)));
   }
 
   @Override
@@ -780,32 +790,49 @@ public class Translator extends ASTVisitor {
 
   @Override
   public boolean visit(org.eclipse.jdt.core.dom.TypeDeclaration node) {
-    ClassDeclaration dartClass = new ClassDeclaration();
+    SimpleIdentifier name = newSimpleIdentifier(node.getName());
     // interface
+    KeywordToken abstractToken = null;
     if (node.isInterface() || Modifier.isAbstract(node.getModifiers())) {
-      dartClass.setAbstractKeyword(new KeywordToken(Keyword.ABSTRACT, 0));
+      abstractToken = new KeywordToken(Keyword.ABSTRACT, 0);
     }
-    // name
-    dartClass.setName(newSimpleIdentifier(node.getName()));
     // type parameters
+    TypeParameterList typeParams = null;
     {
+      List<TypeParameter> typeParameters = Lists.newArrayList();
       List<?> javaTypeParameters = node.typeParameters();
       if (!javaTypeParameters.isEmpty()) {
-        dartClass.setTypeParameters(new TypeParameterList());
         for (Iterator<?> I = javaTypeParameters.iterator(); I.hasNext();) {
           org.eclipse.jdt.core.dom.TypeParameter javaTypeParameter = (org.eclipse.jdt.core.dom.TypeParameter) I.next();
           TypeParameter typeParameter = translate(javaTypeParameter);
-          dartClass.getTypeParameters().getTypeParameters().add(typeParameter);
+          typeParameters.add(typeParameter);
         }
+        typeParams = new TypeParameterList(null, typeParameters, null);
       }
     }
+    // TODO(scheglov)
+    ExtendsClause extendsClause = null;
+    ImplementsClause implementsClause = null;
     // members
+    List<ClassMember> members = Lists.newArrayList();
     for (Iterator<?> I = node.bodyDeclarations().iterator(); I.hasNext();) {
       org.eclipse.jdt.core.dom.BodyDeclaration javaBodyDecl = (org.eclipse.jdt.core.dom.BodyDeclaration) I.next();
       ClassMember member = translate(javaBodyDecl);
-      dartClass.getMembers().add(member);
+      members.add(member);
     }
-    return done(dartClass);
+    return done(new ClassDeclaration(
+        null,
+        null,
+        abstractToken,
+        null,
+        name,
+        typeParams,
+        extendsClause,
+        null,
+        implementsClause,
+        null,
+        members,
+        null));
   }
 
   @Override
@@ -820,16 +847,16 @@ public class Translator extends ASTVisitor {
 
   @Override
   public boolean visit(org.eclipse.jdt.core.dom.TypeParameter node) {
-    TypeParameter typeParameter = new TypeParameter();
-    typeParameter.setName(newSimpleIdentifier(node.getName()));
+    SimpleIdentifier name = newSimpleIdentifier(node.getName());
+    TypeName bound = null;
     {
       List<?> typeBounds = node.typeBounds();
       if (typeBounds.size() == 1) {
-        org.eclipse.jdt.core.dom.Type bound = (org.eclipse.jdt.core.dom.Type) typeBounds.get(0);
-        typeParameter.setBound((TypeName) translate(bound));
+        org.eclipse.jdt.core.dom.Type javaBound = (org.eclipse.jdt.core.dom.Type) typeBounds.get(0);
+        bound = (TypeName) translate(javaBound);
       }
     }
-    return done(typeParameter);
+    return done(new TypeParameter(null, null, name, null, bound));
   }
 
   @Override

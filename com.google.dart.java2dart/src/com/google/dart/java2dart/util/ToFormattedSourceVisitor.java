@@ -272,6 +272,7 @@ public class ToFormattedSourceVisitor implements ASTVisitor<Void> {
 
   @Override
   public Void visitClassDeclaration(ClassDeclaration node) {
+    visit(node.getDocumentationComment());
     visit(node.getAbstractKeyword(), " ");
     writer.print("class ");
     visit(node.getName());
@@ -308,7 +309,17 @@ public class ToFormattedSourceVisitor implements ASTVisitor<Void> {
 
   @Override
   public Void visitComment(Comment node) {
-    // We don't print comments.
+    Token token = node.getBeginToken();
+    while (token != null) {
+      for (String line : StringUtils.split(token.getLexeme(), '\n')) {
+        writer.print(line);
+        writer.print("\n");
+        indent();
+      }
+      if (token == node.getEndToken()) {
+        break;
+      }
+    }
     return null;
   }
 
@@ -350,7 +361,10 @@ public class ToFormattedSourceVisitor implements ASTVisitor<Void> {
     visit(node.getParameters());
     visitList(" : ", node.getInitializers(), ", ");
     visit(" = ", node.getRedirectedConstructor());
-    visit(" ", node.getBody());
+    if (!(node.getBody() instanceof EmptyFunctionBody)) {
+      writer.print(' ');
+    }
+    visit(node.getBody());
     return null;
   }
 
@@ -450,7 +464,9 @@ public class ToFormattedSourceVisitor implements ASTVisitor<Void> {
 
   @Override
   public Void visitFieldDeclaration(FieldDeclaration node) {
-    visit(node.getKeyword(), " ");
+    visit(node.getDocumentationComment());
+    visit(node.getStaticKeyword(), " ");
+    visit(node.getFinalKeyword(), " ");
     visit(node.getFields());
     writer.print(";");
     return null;
@@ -729,6 +745,7 @@ public class ToFormattedSourceVisitor implements ASTVisitor<Void> {
 
   @Override
   public Void visitMethodDeclaration(MethodDeclaration node) {
+    visit(node.getDocumentationComment());
     visit(node.getExternalKeyword(), " ");
     visit(node.getModifierKeyword(), " ");
     visit(node.getReturnType(), " ");

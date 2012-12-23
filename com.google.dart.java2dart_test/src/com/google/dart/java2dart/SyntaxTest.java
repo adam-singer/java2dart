@@ -16,6 +16,8 @@ package com.google.dart.java2dart;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableMap;
+import com.google.dart.engine.ast.ClassDeclaration;
+import com.google.dart.engine.ast.Comment;
 
 import junit.framework.TestCase;
 
@@ -92,6 +94,84 @@ public class SyntaxTest extends TestCase {
     assertDartSource("class A<K, V extends String> {A(K k, V v) {}}");
   }
 
+  public void test_commentDoc_class() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "/**",
+        " * Some comment.",
+        " */",
+        "public class A {",
+        "}");
+    assertDartSource("class A {}");
+    {
+      Comment docComment = dartUnit.getDeclarations().get(0).getDocumentationComment();
+      assertEquals("/**\n * Some comment.\n */\n", docComment.getBeginToken().toString());
+    }
+  }
+
+  public void test_commentDoc_field() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  /**",
+        "   * Some comment.",
+        "   */",
+        "  int foo;",
+        "}");
+    assertDartSource("class A {int foo;}");
+    {
+      ClassDeclaration classA = (ClassDeclaration) dartUnit.getDeclarations().get(0);
+      Comment docComment = classA.getMembers().get(0).getDocumentationComment();
+      assertEquals("/**\n * Some comment.\n */\n", docComment.getBeginToken().toString());
+    }
+  }
+
+  public void test_commentDoc_method() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  /**",
+        "   * Some comment.",
+        "   */",
+        "  void foo() {}",
+        "}");
+    assertDartSource("class A {void foo() {}}");
+    {
+      ClassDeclaration classA = (ClassDeclaration) dartUnit.getDeclarations().get(0);
+      Comment docComment = classA.getMembers().get(0).getDocumentationComment();
+      assertEquals("/**\n * Some comment.\n */\n", docComment.getBeginToken().toString());
+    }
+  }
+
+  public void test_enum() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public enum Direction {",
+        "  UP(false), DOWN(false), LEFT(true), RIGHT(true);",
+        "  private Direction(boolean horizontal) {",
+        "    this.horizontal = horizontal;",
+        "  }",
+        "  private final boolean horizontal;",
+        "  public boolean isHorizontal() {",
+        "    return horizontal;",
+        "  }",
+        "}");
+    assertDartSource("class Direction {"
+        + "static final Direction UP = new Direction(false); static final Direction DOWN = new Direction(false); "
+        + "static final Direction LEFT = new Direction(true); static final Direction RIGHT = new Direction(true); "
+        + "Direction(bool horizontal) {this.horizontal = horizontal;} "
+        + "final bool horizontal; bool isHorizontal() {return horizontal;}}");
+  }
+
+  public void test_enum_withImplements() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public interface I {}",
+        "public enum Direction implements I {",
+        "}");
+    assertDartSource("abstract class I {} class Direction implements I {}");
+  }
+
   public void test_expressionArrayAccess() throws Exception {
     parseJava(
         "// filler filler filler filler filler filler filler filler filler filler",
@@ -123,6 +203,17 @@ public class SyntaxTest extends TestCase {
         "  }",
         "}");
     assertDartSource("class A {A() {Object v = <List<int>> [<int> [1, 2, 3], <int> [10, 20, 30]];}}");
+  }
+
+  public void test_expressionArrayCreation_noInitializer() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  A() {",
+        "    String[] v = new String[3];",
+        "  }",
+        "}");
+    assertDartSource("class A {A() {List<String> v = new List<String>.fixedLength(3);}}");
   }
 
   public void test_expressionArrayInitializer() throws Exception {
@@ -526,8 +617,11 @@ public class SyntaxTest extends TestCase {
         "  protected int fProtected;",
         "  int fDefault;",
         "  private int fPrivate;",
+        "  final int fFinal;",
+        "  static final int fStaticFinal;",
         "}");
-    assertDartSource("class A {int fPublic; int fProtected; int fDefault; int fPrivate;}");
+    assertDartSource("class A {int fPublic; int fProtected; int fDefault; int fPrivate; "
+        + "final int fFinal; static final int fStaticFinal;}");
   }
 
   /**
@@ -541,8 +635,10 @@ public class SyntaxTest extends TestCase {
         "  protected void mProtected() {}",
         "  void mDefault() {}",
         "  private void mPrivate() {}",
+        "  static void mStatic() {}",
         "}");
-    assertDartSource("class A {void mPublic() {} void mProtected() {} void mDefault() {} void mPrivate() {}}");
+    assertDartSource("class A {void mPublic() {} void mProtected() {} void mDefault() {} "
+        + "void mPrivate() {} static void mStatic() {}}");
   }
 
   public void test_statementAssert() throws Exception {
@@ -580,6 +676,42 @@ public class SyntaxTest extends TestCase {
         "  }",
         "}");
     assertDartSource("class A {A() {L: L2: while (true) {break L;}}}");
+  }
+
+  public void test_statementConstructorInvocation() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  public A() {",
+        "    this(42);",
+        "  }",
+        "  public A(int p) {",
+        "  }",
+        "}",
+        "");
+    assertDartSource("class A {A() : this(42); A(int p) {}}");
+  }
+
+  /**
+   * TODO(scheglov) we could support body in redirecting constructors using intermediate classes.
+   */
+  public void test_statementConstructorInvocation_hasBody() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  public A() {",
+        "    this(42);",
+        "    print(12345);",
+        "  }",
+        "  public A(int p) {",
+        "  }",
+        "}",
+        "");
+    try {
+      Translator.translate(javaUnit);
+      fail();
+    } catch (IllegalArgumentException e) {
+    }
   }
 
   public void test_statementContinue() throws Exception {
@@ -875,7 +1007,11 @@ public class SyntaxTest extends TestCase {
   private void parseJava(String... lines) {
     String source = Joiner.on("\n").join(lines);
     ASTParser parser = ASTParser.newParser(AST.JLS4);
-    parser.setCompilerOptions(ImmutableMap.of(JavaCore.COMPILER_SOURCE, JavaCore.VERSION_1_5));
+    parser.setCompilerOptions(ImmutableMap.of(
+        JavaCore.COMPILER_SOURCE,
+        JavaCore.VERSION_1_5,
+        JavaCore.COMPILER_DOC_COMMENT_SUPPORT,
+        JavaCore.ENABLED));
     parser.setSource(source.toCharArray());
     javaUnit = (CompilationUnit) parser.createAST(null);
     assertThat(javaUnit.getProblems()).isEmpty();

@@ -57,7 +57,11 @@ public class Main {
 
   private static org.eclipse.jdt.core.dom.CompilationUnit parseJava(String source) {
     ASTParser parser = ASTParser.newParser(AST.JLS4);
-    parser.setCompilerOptions(ImmutableMap.of(JavaCore.COMPILER_SOURCE, JavaCore.VERSION_1_5));
+    parser.setCompilerOptions(ImmutableMap.of(
+        JavaCore.COMPILER_SOURCE,
+        JavaCore.VERSION_1_5,
+        JavaCore.COMPILER_DOC_COMMENT_SUPPORT,
+        JavaCore.ENABLED));
     parser.setSource(source.toCharArray());
     return (org.eclipse.jdt.core.dom.CompilationUnit) parser.createAST(null);
   }

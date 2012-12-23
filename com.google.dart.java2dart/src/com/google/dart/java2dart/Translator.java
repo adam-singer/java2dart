@@ -26,6 +26,7 @@ import com.google.dart.engine.ast.BreakStatement;
 import com.google.dart.engine.ast.CatchClause;
 import com.google.dart.engine.ast.ClassDeclaration;
 import com.google.dart.engine.ast.ClassMember;
+import com.google.dart.engine.ast.Comment;
 import com.google.dart.engine.ast.CompilationUnit;
 import com.google.dart.engine.ast.CompilationUnitMember;
 import com.google.dart.engine.ast.ConditionalExpression;
@@ -41,6 +42,7 @@ import com.google.dart.engine.ast.EmptyStatement;
 import com.google.dart.engine.ast.Expression;
 import com.google.dart.engine.ast.ExpressionStatement;
 import com.google.dart.engine.ast.ExtendsClause;
+import com.google.dart.engine.ast.FieldDeclaration;
 import com.google.dart.engine.ast.ForEachStatement;
 import com.google.dart.engine.ast.ForStatement;
 import com.google.dart.engine.ast.FormalParameter;
@@ -62,6 +64,7 @@ import com.google.dart.engine.ast.ParenthesizedExpression;
 import com.google.dart.engine.ast.PostfixExpression;
 import com.google.dart.engine.ast.PrefixExpression;
 import com.google.dart.engine.ast.PropertyAccess;
+import com.google.dart.engine.ast.RedirectingConstructorInvocation;
 import com.google.dart.engine.ast.ReturnStatement;
 import com.google.dart.engine.ast.SimpleFormalParameter;
 import com.google.dart.engine.ast.SimpleIdentifier;
@@ -100,6 +103,7 @@ import org.eclipse.jdt.core.dom.SimpleName;
 import org.eclipse.jdt.core.dom.SimpleType;
 import org.eclipse.jdt.core.dom.SingleVariableDeclaration;
 
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Iterator;
 import java.util.List;
@@ -175,7 +179,11 @@ public class Translator extends ASTVisitor {
       @Override
       public void run() throws Exception {
         Method method = getMostSpecificMethod(node.getClass());
-        method.invoke(translator, node);
+        try {
+          method.invoke(translator, node);
+        } catch (InvocationTargetException e) {
+          ExecutionUtils.propagate(e.getCause());
+        }
       }
     });
     Assert.isNotNull(translator.result, "No result for: " + node.getClass().getCanonicalName());
@@ -254,8 +262,20 @@ public class Translator extends ASTVisitor {
   public boolean visit(org.eclipse.jdt.core.dom.ArrayCreation node) {
     TypeName listType = translate(node.getType());
     TypeArgumentList typeArgs = listType.getTypeArguments();
-    List<Expression> elements = translateExpressionList(node.getInitializer().expressions());
-    return done(new ListLiteral(null, typeArgs, null, elements, null));
+    if (node.getInitializer() != null) {
+      List<Expression> elements = translateExpressionList(node.getInitializer().expressions());
+      return done(new ListLiteral(null, typeArgs, null, elements, null));
+    } else {
+      ConstructorName constructorName = new ConstructorName(
+          (TypeName) translate(node.getType()),
+          null,
+          newSimpleIdentifier("fixedLength"));
+      ArgumentList arguments = translateArgumentList(node.dimensions());
+      return done(new InstanceCreationExpression(
+          new KeywordToken(Keyword.NEW, 0),
+          constructorName,
+          arguments));
+    }
   }
 
   @Override
@@ -286,9 +306,13 @@ public class Translator extends ASTVisitor {
     List<Statement> statements = Lists.newArrayList();
     for (Iterator<?> I = node.statements().iterator(); I.hasNext();) {
       org.eclipse.jdt.core.dom.Statement javaStatement = (org.eclipse.jdt.core.dom.Statement) I.next();
-      if (!(javaStatement instanceof org.eclipse.jdt.core.dom.SuperConstructorInvocation)) {
-        statements.add((Statement) translate(javaStatement));
+      if (javaStatement instanceof org.eclipse.jdt.core.dom.SuperConstructorInvocation) {
+        continue;
       }
+      if (javaStatement instanceof org.eclipse.jdt.core.dom.ConstructorInvocation) {
+        continue;
+      }
+      statements.add((Statement) translate(javaStatement));
     }
     return done(new Block(null, statements, null));
   }
@@ -345,8 +369,8 @@ public class Translator extends ASTVisitor {
     List<Directive> directives = Lists.newArrayList();
     List<CompilationUnitMember> declarations = Lists.newArrayList();
     for (Iterator<?> I = node.types().iterator(); I.hasNext();) {
-      org.eclipse.jdt.core.dom.TypeDeclaration javaType = (org.eclipse.jdt.core.dom.TypeDeclaration) I.next();
-      ClassDeclaration dartClass = translate(javaType);
+      Object javaType = I.next();
+      ClassDeclaration dartClass = translate((org.eclipse.jdt.core.dom.ASTNode) javaType);
       declarations.add(dartClass);
     }
     return done(new CompilationUnit(null, null, directives, declarations, null));
@@ -360,6 +384,12 @@ public class Translator extends ASTVisitor {
         (Expression) translate(node.getThenExpression()),
         null,
         (Expression) translate(node.getElseExpression())));
+  }
+
+  @Override
+  public boolean visit(org.eclipse.jdt.core.dom.ConstructorInvocation node) {
+    ArgumentList argumentList = translateArgumentList(node.arguments());
+    return done(new RedirectingConstructorInvocation(null, null, null, argumentList));
   }
 
   @Override
@@ -397,6 +427,83 @@ public class Translator extends ASTVisitor {
   }
 
   @Override
+  public boolean visit(org.eclipse.jdt.core.dom.EnumConstantDeclaration node) {
+    // prepare enum name
+    SimpleName enumTypeName;
+    {
+      org.eclipse.jdt.core.dom.EnumDeclaration parentEnum = (org.eclipse.jdt.core.dom.EnumDeclaration) node.getParent();
+      enumTypeName = parentEnum.getName();
+    }
+    // prepare field type
+    TypeName type = new TypeName(newSimpleIdentifier(enumTypeName), null);
+    // prepare field variables
+    List<VariableDeclaration> variables = Lists.newArrayList();
+    {
+      Expression init = new InstanceCreationExpression(
+          new KeywordToken(Keyword.NEW, 0),
+          new ConstructorName(new TypeName(newSimpleIdentifier(enumTypeName), null), null, null),
+          translateArgumentList(node.arguments()));
+      variables.add(new VariableDeclaration(
+          null,
+          null,
+          newSimpleIdentifier(node.getName()),
+          null,
+          init));
+    }
+    VariableDeclarationList fieldList = new VariableDeclarationList(null, type, variables);
+    // TODO(scheglov) move "final" to constructor
+    FieldDeclaration fieldDeclaration = new FieldDeclaration(
+        translateJavadoc(node),
+        null,
+        new KeywordToken(Keyword.STATIC, 0),
+        fieldList,
+        null);
+    fieldDeclaration.setFinalKeyword(new KeywordToken(Keyword.FINAL, 0));
+    return done(fieldDeclaration);
+  }
+
+  @Override
+  public boolean visit(org.eclipse.jdt.core.dom.EnumDeclaration node) {
+    SimpleIdentifier name = newSimpleIdentifier(node.getName());
+    // implements
+    ImplementsClause implementsClause = null;
+    if (!node.superInterfaceTypes().isEmpty()) {
+      List<TypeName> interfaces = Lists.newArrayList();
+      for (Object javaInterface : node.superInterfaceTypes()) {
+        interfaces.add((TypeName) translate((org.eclipse.jdt.core.dom.ASTNode) javaInterface));
+      }
+      implementsClause = new ImplementsClause(null, interfaces);
+    }
+    // members
+    List<ClassMember> members = Lists.newArrayList();
+    {
+      // constants
+      for (Object javaConst : node.enumConstants()) {
+        members.add((FieldDeclaration) translate((org.eclipse.jdt.core.dom.EnumConstantDeclaration) javaConst));
+      }
+      // body declarations
+      for (Iterator<?> I = node.bodyDeclarations().iterator(); I.hasNext();) {
+        org.eclipse.jdt.core.dom.BodyDeclaration javaBodyDecl = (org.eclipse.jdt.core.dom.BodyDeclaration) I.next();
+        ClassMember member = translate(javaBodyDecl);
+        members.add(member);
+      }
+    }
+    return done(new ClassDeclaration(
+        translateJavadoc(node),
+        null,
+        null,
+        null,
+        name,
+        null,
+        null,
+        null,
+        implementsClause,
+        null,
+        members,
+        null));
+  }
+
+  @Override
   public boolean visit(org.eclipse.jdt.core.dom.ExpressionStatement node) {
     Expression expression = translate(node.getExpression());
     return done(new ExpressionStatement(expression, null));
@@ -413,12 +520,20 @@ public class Translator extends ASTVisitor {
 
   @Override
   public boolean visit(org.eclipse.jdt.core.dom.FieldDeclaration node) {
-    return done(new com.google.dart.engine.ast.FieldDeclaration(
-        null,
+    FieldDeclaration fieldDeclaration = new FieldDeclaration(
+        translateJavadoc(node),
         null,
         null,
         traslateVariableDeclarationList(node.getType(), node.fragments()),
-        null));
+        null);
+    if (org.eclipse.jdt.core.dom.Modifier.isStatic(node.getModifiers())) {
+      fieldDeclaration.setStaticKeyword(new KeywordToken(Keyword.STATIC, 0));
+    }
+    // TODO(scheglov) move "final" to constructor
+    if (org.eclipse.jdt.core.dom.Modifier.isFinal(node.getModifiers())) {
+      fieldDeclaration.setFinalKeyword(new KeywordToken(Keyword.FINAL, 0));
+    }
+    return done(fieldDeclaration);
   }
 
   @Override
@@ -542,6 +657,20 @@ public class Translator extends ASTVisitor {
   }
 
   @Override
+  public boolean visit(org.eclipse.jdt.core.dom.Javadoc node) {
+    StringBuilder buffer = new StringBuilder();
+    {
+      buffer.append("/**");
+      for (Object javaTag : node.tags()) {
+        buffer.append(javaTag.toString());
+      }
+      buffer.append("\n */\n");
+    }
+    StringToken commentToken = new StringToken(TokenType.STRING, buffer.toString(), 0);
+    return done(Comment.createDocumentationComment(new Token[] {commentToken}));
+  }
+
+  @Override
   public boolean visit(org.eclipse.jdt.core.dom.LabeledStatement node) {
     List<Label> labels = Lists.newArrayList();
     while (true) {
@@ -571,6 +700,7 @@ public class Translator extends ASTVisitor {
     // done
     FunctionBody body;
     SuperConstructorInvocation superConstructorInvocation = null;
+    RedirectingConstructorInvocation redirectingConstructorInvocation = null;
     {
       org.eclipse.jdt.core.dom.Block javaBlock = node.getBody();
       if (javaBlock != null) {
@@ -578,8 +708,19 @@ public class Translator extends ASTVisitor {
           if (javaStatement instanceof org.eclipse.jdt.core.dom.SuperConstructorInvocation) {
             superConstructorInvocation = translate((org.eclipse.jdt.core.dom.SuperConstructorInvocation) javaStatement);
           }
+          if (javaStatement instanceof org.eclipse.jdt.core.dom.ConstructorInvocation) {
+            redirectingConstructorInvocation = translate((org.eclipse.jdt.core.dom.ConstructorInvocation) javaStatement);
+          }
         }
-        body = new BlockFunctionBody((Block) translate(javaBlock));
+        Block bodyBlock = (Block) translate(javaBlock);
+        if (redirectingConstructorInvocation != null) {
+          Assert.isLegal(
+              bodyBlock.getStatements().isEmpty(),
+              "Cannot translate redirecting constructor with body.");
+          body = new EmptyFunctionBody(null);
+        } else {
+          body = new BlockFunctionBody(bodyBlock);
+        }
       } else {
         body = new EmptyFunctionBody(null);
       }
@@ -589,8 +730,11 @@ public class Translator extends ASTVisitor {
       if (superConstructorInvocation != null) {
         initializers.add(superConstructorInvocation);
       }
+      if (redirectingConstructorInvocation != null) {
+        initializers.add(redirectingConstructorInvocation);
+      }
       return done(new ConstructorDeclaration(
-          null,
+          translateJavadoc(node),
           null,
           null,
           null,
@@ -604,11 +748,13 @@ public class Translator extends ASTVisitor {
           null,
           body));
     } else {
+      Token modifierKeyword = org.eclipse.jdt.core.dom.Modifier.isStatic(node.getModifiers())
+          ? new KeywordToken(Keyword.STATIC, 0) : null;
       return done(new MethodDeclaration(
+          translateJavadoc(node),
           null,
           null,
-          null,
-          null,
+          modifierKeyword,
           (TypeName) translate(node.getReturnType2()),
           null,
           null,
@@ -874,7 +1020,7 @@ public class Translator extends ASTVisitor {
       members.add(member);
     }
     return done(new ClassDeclaration(
-        null,
+        translateJavadoc(node),
         null,
         abstractToken,
         null,
@@ -955,5 +1101,9 @@ public class Translator extends ASTVisitor {
   private boolean done(ASTNode node) {
     result = node;
     return false;
+  }
+
+  private Comment translateJavadoc(org.eclipse.jdt.core.dom.BodyDeclaration node) {
+    return (Comment) translate(node.getJavadoc());
   }
 }

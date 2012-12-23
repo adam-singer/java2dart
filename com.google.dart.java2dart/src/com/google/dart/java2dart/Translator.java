@@ -29,6 +29,8 @@ import com.google.dart.engine.ast.ClassMember;
 import com.google.dart.engine.ast.CompilationUnit;
 import com.google.dart.engine.ast.CompilationUnitMember;
 import com.google.dart.engine.ast.ConditionalExpression;
+import com.google.dart.engine.ast.ConstructorDeclaration;
+import com.google.dart.engine.ast.ConstructorInitializer;
 import com.google.dart.engine.ast.ConstructorName;
 import com.google.dart.engine.ast.ContinueStatement;
 import com.google.dart.engine.ast.Directive;
@@ -65,6 +67,7 @@ import com.google.dart.engine.ast.SimpleFormalParameter;
 import com.google.dart.engine.ast.SimpleIdentifier;
 import com.google.dart.engine.ast.SimpleStringLiteral;
 import com.google.dart.engine.ast.Statement;
+import com.google.dart.engine.ast.SuperConstructorInvocation;
 import com.google.dart.engine.ast.SwitchCase;
 import com.google.dart.engine.ast.SwitchDefault;
 import com.google.dart.engine.ast.SwitchMember;
@@ -283,7 +286,9 @@ public class Translator extends ASTVisitor {
     List<Statement> statements = Lists.newArrayList();
     for (Iterator<?> I = node.statements().iterator(); I.hasNext();) {
       org.eclipse.jdt.core.dom.Statement javaStatement = (org.eclipse.jdt.core.dom.Statement) I.next();
-      statements.add((Statement) translate(javaStatement));
+      if (!(javaStatement instanceof org.eclipse.jdt.core.dom.SuperConstructorInvocation)) {
+        statements.add((Statement) translate(javaStatement));
+      }
     }
     return done(new Block(null, statements, null));
   }
@@ -565,22 +570,52 @@ public class Translator extends ASTVisitor {
     }
     // done
     FunctionBody body;
-    if (node.getBody() != null) {
-      body = new BlockFunctionBody((Block) translate(node.getBody()));
-    } else {
-      body = new EmptyFunctionBody(null);
+    SuperConstructorInvocation superConstructorInvocation = null;
+    {
+      org.eclipse.jdt.core.dom.Block javaBlock = node.getBody();
+      if (javaBlock != null) {
+        for (Object javaStatement : javaBlock.statements()) {
+          if (javaStatement instanceof org.eclipse.jdt.core.dom.SuperConstructorInvocation) {
+            superConstructorInvocation = translate((org.eclipse.jdt.core.dom.SuperConstructorInvocation) javaStatement);
+          }
+        }
+        body = new BlockFunctionBody((Block) translate(javaBlock));
+      } else {
+        body = new EmptyFunctionBody(null);
+      }
     }
-    return done(new MethodDeclaration(
-        null,
-        null,
-        null,
-        null,
-        (TypeName) translate(node.getReturnType2()),
-        null,
-        null,
-        newSimpleIdentifier(node.getName()),
-        parameterList,
-        body));
+    if (node.isConstructor()) {
+      List<ConstructorInitializer> initializers = Lists.newArrayList();
+      if (superConstructorInvocation != null) {
+        initializers.add(superConstructorInvocation);
+      }
+      return done(new ConstructorDeclaration(
+          null,
+          null,
+          null,
+          null,
+          null,
+          newSimpleIdentifier(node.getName()),
+          null,
+          null,
+          parameterList,
+          null,
+          initializers,
+          null,
+          body));
+    } else {
+      return done(new MethodDeclaration(
+          null,
+          null,
+          null,
+          null,
+          (TypeName) translate(node.getReturnType2()),
+          null,
+          null,
+          newSimpleIdentifier(node.getName()),
+          parameterList,
+          body));
+    }
   }
 
   @Override
@@ -724,6 +759,12 @@ public class Translator extends ASTVisitor {
   }
 
   @Override
+  public boolean visit(org.eclipse.jdt.core.dom.SuperConstructorInvocation node) {
+    ArgumentList argumentList = translateArgumentList(node.arguments());
+    return done(new SuperConstructorInvocation(null, null, null, argumentList));
+  }
+
+  @Override
   public boolean visit(org.eclipse.jdt.core.dom.SwitchStatement node) {
     List<SwitchMember> members = Lists.newArrayList();
     {
@@ -810,9 +851,21 @@ public class Translator extends ASTVisitor {
         typeParams = new TypeParameterList(null, typeParameters, null);
       }
     }
-    // TODO(scheglov)
+    // extends
     ExtendsClause extendsClause = null;
+    if (node.getSuperclassType() != null) {
+      TypeName superType = translate(node.getSuperclassType());
+      extendsClause = new ExtendsClause(null, superType);
+    }
+    // implements
     ImplementsClause implementsClause = null;
+    if (!node.superInterfaceTypes().isEmpty()) {
+      List<TypeName> interfaces = Lists.newArrayList();
+      for (Object javaInterface : node.superInterfaceTypes()) {
+        interfaces.add((TypeName) translate((org.eclipse.jdt.core.dom.ASTNode) javaInterface));
+      }
+      implementsClause = new ImplementsClause(null, interfaces);
+    }
     // members
     List<ClassMember> members = Lists.newArrayList();
     for (Iterator<?> I = node.bodyDeclarations().iterator(); I.hasNext();) {

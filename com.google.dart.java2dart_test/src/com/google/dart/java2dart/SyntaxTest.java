@@ -58,6 +58,30 @@ public class SyntaxTest extends TestCase {
     assertDartSource("class A {}");
   }
 
+  public void test_classExtends() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "}",
+        "public class B extends A {",
+        "}",
+        "");
+    assertDartSource("class A {} class B extends A {}");
+  }
+
+  public void test_classImplements() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public interface I1 {}",
+        "public interface I2 {}",
+        "public interface I3 {}",
+        "public class B implements I1, I2, I3 {",
+        "}",
+        "");
+    assertDartSource("abstract class I1 {} abstract class I2 {} abstract class I3 {}"
+        + " class B implements I1, I2, I3 {}");
+  }
+
   public void test_classTypeParameters() throws Exception {
     parseJava(
         "// filler filler filler filler filler filler filler filler filler filler",
@@ -686,6 +710,25 @@ public class SyntaxTest extends TestCase {
         "  }",
         "}");
     assertDartSource("class A {int foo() {return 42;}}");
+  }
+
+  public void test_statementSuperConstructorInvocation() throws Exception {
+    parseJava(
+        "// filler filler filler filler filler filler filler filler filler filler",
+        "public class A {",
+        "  public A(int p) {",
+        "  }",
+        "}",
+        "public class B extends A {",
+        "  public B() {",
+        "    super(42);",
+        "    print(0);",
+        "    print(1);",
+        "  }",
+        "}",
+        "");
+    assertDartSource("class A {A(int p) {}}"
+        + " class B extends A {B() : super(42) {print(0); print(1);}}");
   }
 
   public void test_statementSwitch() throws Exception {

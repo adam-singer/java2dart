@@ -42,7 +42,8 @@ public class Main {
     //
     String javaSource = Files.toString(file, Charset.forName("UTF-8"));
     org.eclipse.jdt.core.dom.CompilationUnit javaUnit = parseJava(javaSource);
-    CompilationUnit dartUnit = Translator.translate(javaUnit);
+    Context context = new Context();
+    CompilationUnit dartUnit = SyntaxTranslator.translate(context, javaUnit);
     System.out.println(getFormattedSource(dartUnit));
   }
 

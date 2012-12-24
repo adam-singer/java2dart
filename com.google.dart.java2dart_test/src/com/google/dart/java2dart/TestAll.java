@@ -20,7 +20,8 @@ public class TestAll {
   public static Test suite() {
     TestSuite suite = new TestSuite("Tests in " + TestAll.class.getPackage().getName());
     suite.addTest(com.google.dart.java2dart.util.TestAll.suite());
-    suite.addTestSuite(SyntaxTest.class);
+    suite.addTestSuite(SyntaxTranslatorTest.class);
+    suite.addTestSuite(SemanticTest.class);
     return suite;
   }
 }

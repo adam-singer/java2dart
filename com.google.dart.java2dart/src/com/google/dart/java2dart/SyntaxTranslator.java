@@ -96,12 +96,6 @@ import com.google.dart.java2dart.util.RunnableEx;
 
 import org.apache.commons.lang3.StringUtils;
 import org.eclipse.core.runtime.Assert;
-import org.eclipse.jdt.core.dom.ASTVisitor;
-import org.eclipse.jdt.core.dom.Assignment;
-import org.eclipse.jdt.core.dom.Modifier;
-import org.eclipse.jdt.core.dom.SimpleName;
-import org.eclipse.jdt.core.dom.SimpleType;
-import org.eclipse.jdt.core.dom.SingleVariableDeclaration;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -111,31 +105,30 @@ import java.util.List;
 /**
  * Translates Java AST to Dart AST.
  */
-public class Translator extends ASTVisitor {
+public class SyntaxTranslator extends org.eclipse.jdt.core.dom.ASTVisitor {
   /**
    * Translates given Java AST into Dart AST.
    */
-  public static com.google.dart.engine.ast.CompilationUnit translate(
+  public static CompilationUnit translate(Context context,
       org.eclipse.jdt.core.dom.CompilationUnit javaUnit) {
-    Translator translator = new Translator();
+    SyntaxTranslator translator = new SyntaxTranslator(context);
     javaUnit.accept(translator);
     return (CompilationUnit) translator.result;
   }
 
+  /**
+   * @return the {@link Method} of {@link SyntaxTranslator} to translate
+   *         {@link org.eclipse.jdt.core.dom.ASTNode} of the given class.
+   */
   private static Method getMostSpecificMethod(Class<?> argumentType) throws Exception {
     Method resultMethod = null;
-    Class<?> resultType = null;
-    for (Method method : Translator.class.getMethods()) {
-      if (!method.getName().equals("visit")) {
-        continue;
-      }
-      Class<?> parameterType = method.getParameterTypes()[0];
-      if (!parameterType.isAssignableFrom(argumentType)) {
-        continue;
-      }
-      if (resultType == null || resultType.isAssignableFrom(parameterType)) {
-        resultMethod = method;
-        resultType = parameterType;
+    for (Method method : SyntaxTranslator.class.getMethods()) {
+      if (method.getName().equals("visit")) {
+        Class<?>[] parameterTypes = method.getParameterTypes();
+        if (parameterTypes.length == 1 && parameterTypes[0] == argumentType) {
+          resultMethod = method;
+          break;
+        }
       }
     }
     Assert.isNotNull(resultMethod);
@@ -154,101 +147,16 @@ public class Translator extends ASTVisitor {
     return listType;
   }
 
-  private static SimpleIdentifier newSimpleIdentifier(org.eclipse.jdt.core.dom.SimpleName name) {
-    return newSimpleIdentifier(name.getIdentifier());
-  }
-
   private static SimpleIdentifier newSimpleIdentifier(String name) {
     return new SimpleIdentifier(new StringToken(TokenType.IDENTIFIER, name, 0));
   }
 
-  /**
-   * Recursively translates given {@link org.eclipse.jdt.core.dom.ASTNode} to Dart {@link ASTNode}.
-   * 
-   * @return the corresponding Dart {@link ASTNode}, may be <code>null</code> if <code>null</code>
-   *         argument was given; not <code>null</code> if argument is not <code>null</code> (if
-   *         translation is not implemented, exception will be thrown).
-   */
-  @SuppressWarnings("unchecked")
-  private static <T extends ASTNode> T translate(final org.eclipse.jdt.core.dom.ASTNode node) {
-    if (node == null) {
-      return null;
-    }
-    final Translator translator = new Translator();
-    ExecutionUtils.runRethrow(new RunnableEx() {
-      @Override
-      public void run() throws Exception {
-        Method method = getMostSpecificMethod(node.getClass());
-        try {
-          method.invoke(translator, node);
-        } catch (InvocationTargetException e) {
-          ExecutionUtils.propagate(e.getCause());
-        }
-      }
-    });
-    Assert.isNotNull(translator.result, "No result for: " + node.getClass().getCanonicalName());
-    return (T) translator.result;
-  }
-
-  /**
-   * Translates given {@link List} of {@link org.eclipse.jdt.core.dom.Expression} to the
-   * {@link ArgumentList}.
-   */
-  private static ArgumentList translateArgumentList(List<?> javaArguments) {
-    List<Expression> arguments = translateExpressionList(javaArguments);
-    return new ArgumentList(null, arguments, null);
-  }
-
-  /**
-   * Translates given {@link List} of {@link org.eclipse.jdt.core.dom.Expression} to the
-   * {@link List} of {@link Expression}s.
-   */
-  private static List<Expression> translateExpressionList(List<?> javaArguments) {
-    List<Expression> arguments = Lists.newArrayList();
-    for (Iterator<?> I = javaArguments.iterator(); I.hasNext();) {
-      org.eclipse.jdt.core.dom.Expression javaArg = (org.eclipse.jdt.core.dom.Expression) I.next();
-      Expression dartArg = translate(javaArg);
-      arguments.add(dartArg);
-    }
-    return arguments;
-  }
-
-  /**
-   * Translates given {@link List} of {@link org.eclipse.jdt.core.dom.Type} to the
-   * {@link TypeArgumentList}.
-   */
-  private static TypeArgumentList translateTypeArgumentList(List<?> javaArguments) {
-    List<TypeName> arguments = Lists.newArrayList();
-    for (Iterator<?> I = javaArguments.iterator(); I.hasNext();) {
-      org.eclipse.jdt.core.dom.Type javaArg = (org.eclipse.jdt.core.dom.Type) I.next();
-      TypeName dartArg = translate(javaArg);
-      arguments.add(dartArg);
-    }
-    return new TypeArgumentList(null, arguments, null);
-  }
-
-  /**
-   * Translates given {@link List} of {@link org.eclipse.jdt.core.dom.VariableDeclarationFragment}
-   * to the {@link VariableDeclarationList}.
-   */
-  private static VariableDeclarationList traslateVariableDeclarationList(
-      org.eclipse.jdt.core.dom.Type javaType, List<?> javaVars) {
-    List<VariableDeclaration> variableDeclarations = Lists.newArrayList();
-    for (Iterator<?> I = javaVars.iterator(); I.hasNext();) {
-      org.eclipse.jdt.core.dom.VariableDeclarationFragment javaFragment = (org.eclipse.jdt.core.dom.VariableDeclarationFragment) I.next();
-      VariableDeclaration var = translate(javaFragment);
-      variableDeclarations.add(var);
-    }
-    return new VariableDeclarationList(null, (TypeName) translate(javaType), variableDeclarations);
-  }
+  private final Context context;
 
   private ASTNode result;
 
-  @Override
-  public boolean visit(Assignment node) {
-    Expression left = translate(node.getLeftHandSide());
-    Expression right = translate(node.getRightHandSide());
-    return done(new BinaryExpression(left, new Token(TokenType.EQ, 0), right));
+  private SyntaxTranslator(Context context) {
+    this.context = context;
   }
 
   @Override
@@ -302,6 +210,13 @@ public class Translator extends ASTVisitor {
   }
 
   @Override
+  public boolean visit(org.eclipse.jdt.core.dom.Assignment node) {
+    Expression left = translate(node.getLeftHandSide());
+    Expression right = translate(node.getRightHandSide());
+    return done(new BinaryExpression(left, new Token(TokenType.EQ, 0), right));
+  }
+
+  @Override
   public boolean visit(org.eclipse.jdt.core.dom.Block node) {
     List<Statement> statements = Lists.newArrayList();
     for (Iterator<?> I = node.statements().iterator(); I.hasNext();) {
@@ -342,7 +257,7 @@ public class Translator extends ASTVisitor {
         (TypeName) translate(node.getException().getType()),
         new StringToken(TokenType.IDENTIFIER, "catch", 0),
         null,
-        newSimpleIdentifier(node.getException().getName()),
+        translateSimpleName(node.getException().getName()),
         null,
         null,
         null,
@@ -429,24 +344,24 @@ public class Translator extends ASTVisitor {
   @Override
   public boolean visit(org.eclipse.jdt.core.dom.EnumConstantDeclaration node) {
     // prepare enum name
-    SimpleName enumTypeName;
+    org.eclipse.jdt.core.dom.SimpleName enumTypeName;
     {
       org.eclipse.jdt.core.dom.EnumDeclaration parentEnum = (org.eclipse.jdt.core.dom.EnumDeclaration) node.getParent();
       enumTypeName = parentEnum.getName();
     }
     // prepare field type
-    TypeName type = new TypeName(newSimpleIdentifier(enumTypeName), null);
+    TypeName type = new TypeName(translateSimpleName(enumTypeName), null);
     // prepare field variables
     List<VariableDeclaration> variables = Lists.newArrayList();
     {
       Expression init = new InstanceCreationExpression(
           new KeywordToken(Keyword.NEW, 0),
-          new ConstructorName(new TypeName(newSimpleIdentifier(enumTypeName), null), null, null),
+          new ConstructorName(new TypeName(translateSimpleName(enumTypeName), null), null, null),
           translateArgumentList(node.arguments()));
       variables.add(new VariableDeclaration(
           null,
           null,
-          newSimpleIdentifier(node.getName()),
+          translateSimpleName(node.getName()),
           null,
           init));
     }
@@ -464,7 +379,7 @@ public class Translator extends ASTVisitor {
 
   @Override
   public boolean visit(org.eclipse.jdt.core.dom.EnumDeclaration node) {
-    SimpleIdentifier name = newSimpleIdentifier(node.getName());
+    SimpleIdentifier name = translateSimpleName(node.getName());
     // implements
     ImplementsClause implementsClause = null;
     if (!node.superInterfaceTypes().isEmpty()) {
@@ -686,12 +601,13 @@ public class Translator extends ASTVisitor {
 
   @Override
   public boolean visit(org.eclipse.jdt.core.dom.MethodDeclaration node) {
+    org.eclipse.jdt.core.dom.IMethodBinding binding = node.resolveBinding();
     // parameters
     FormalParameterList parameterList;
     {
       List<FormalParameter> parameters = Lists.newArrayList();
       for (Iterator<?> I = node.parameters().iterator(); I.hasNext();) {
-        org.eclipse.jdt.core.dom.SingleVariableDeclaration javaParameter = (SingleVariableDeclaration) I.next();
+        org.eclipse.jdt.core.dom.SingleVariableDeclaration javaParameter = (org.eclipse.jdt.core.dom.SingleVariableDeclaration) I.next();
         SimpleFormalParameter parameter = translate(javaParameter);
         parameters.add(parameter);
       }
@@ -739,7 +655,7 @@ public class Translator extends ASTVisitor {
           null,
           null,
           null,
-          newSimpleIdentifier(node.getName()),
+          translateSimpleName(node.getName()),
           null,
           null,
           parameterList,
@@ -758,7 +674,7 @@ public class Translator extends ASTVisitor {
           (TypeName) translate(node.getReturnType2()),
           null,
           null,
-          newSimpleIdentifier(node.getName()),
+          translateSimpleName(node.getName()),
           parameterList,
           body));
     }
@@ -768,7 +684,7 @@ public class Translator extends ASTVisitor {
   public boolean visit(org.eclipse.jdt.core.dom.MethodInvocation node) {
     Expression target = (Expression) translate(node.getExpression());
     ArgumentList argumentList = translateArgumentList(node.arguments());
-    SimpleIdentifier name = newSimpleIdentifier(node.getName());
+    SimpleIdentifier name = translateSimpleName(node.getName());
     return done(new MethodInvocation(target, null, name, argumentList));
   }
 
@@ -886,13 +802,30 @@ public class Translator extends ASTVisitor {
   }
 
   @Override
+  public boolean visit(org.eclipse.jdt.core.dom.SimpleName node) {
+    SimpleIdentifier result = new SimpleIdentifier(new StringToken(
+        TokenType.IDENTIFIER,
+        node.getIdentifier(),
+        0));
+    context.putReference(node.resolveBinding(), result);
+    return done(result);
+  }
+
+  @Override
+  public boolean visit(org.eclipse.jdt.core.dom.SimpleType node) {
+    return done(new TypeName(
+        translateSimpleName((org.eclipse.jdt.core.dom.SimpleName) node.getName()),
+        null));
+  }
+
+  @Override
   public boolean visit(org.eclipse.jdt.core.dom.SingleVariableDeclaration node) {
     return done(new SimpleFormalParameter(
         null,
         null,
         null,
         (TypeName) translate(node.getType()),
-        newSimpleIdentifier(node.getName())));
+        translateSimpleName(node.getName())));
   }
 
   @Override
@@ -977,10 +910,10 @@ public class Translator extends ASTVisitor {
 
   @Override
   public boolean visit(org.eclipse.jdt.core.dom.TypeDeclaration node) {
-    SimpleIdentifier name = newSimpleIdentifier(node.getName());
+    SimpleIdentifier name = translateSimpleName(node.getName());
     // interface
     KeywordToken abstractToken = null;
-    if (node.isInterface() || Modifier.isAbstract(node.getModifiers())) {
+    if (node.isInterface() || org.eclipse.jdt.core.dom.Modifier.isAbstract(node.getModifiers())) {
       abstractToken = new KeywordToken(Keyword.ABSTRACT, 0);
     }
     // type parameters
@@ -1046,7 +979,7 @@ public class Translator extends ASTVisitor {
 
   @Override
   public boolean visit(org.eclipse.jdt.core.dom.TypeParameter node) {
-    SimpleIdentifier name = newSimpleIdentifier(node.getName());
+    SimpleIdentifier name = translateSimpleName(node.getName());
     TypeName bound = null;
     {
       List<?> typeBounds = node.typeBounds();
@@ -1063,7 +996,7 @@ public class Translator extends ASTVisitor {
     return done(new VariableDeclaration(
         null,
         null,
-        newSimpleIdentifier(node.getName()),
+        translateSimpleName(node.getName()),
         null,
         (Expression) translate(node.getInitializer())));
   }
@@ -1085,16 +1018,6 @@ public class Translator extends ASTVisitor {
         (Statement) translate(node.getBody())));
   }
 
-  @Override
-  public boolean visit(SimpleName node) {
-    return done(new SimpleIdentifier(new StringToken(TokenType.IDENTIFIER, node.getIdentifier(), 0)));
-  }
-
-  @Override
-  public boolean visit(SimpleType node) {
-    return done(new TypeName(newSimpleIdentifier(node.getName().toString()), null));
-  }
-
   /**
    * Set {@link #result} and return <code>false</code> - we don't want normal JDT visiting.
    */
@@ -1103,7 +1026,92 @@ public class Translator extends ASTVisitor {
     return false;
   }
 
+  /**
+   * Recursively translates given {@link org.eclipse.jdt.core.dom.ASTNode} to Dart {@link ASTNode}.
+   * 
+   * @return the corresponding Dart {@link ASTNode}, may be <code>null</code> if <code>null</code>
+   *         argument was given; not <code>null</code> if argument is not <code>null</code> (if
+   *         translation is not implemented, exception will be thrown).
+   */
+  @SuppressWarnings("unchecked")
+  private <T extends ASTNode> T translate(final org.eclipse.jdt.core.dom.ASTNode node) {
+    if (node == null) {
+      return null;
+    }
+    ExecutionUtils.runRethrow(new RunnableEx() {
+      @Override
+      public void run() throws Exception {
+        Method method = getMostSpecificMethod(node.getClass());
+        try {
+          method.invoke(SyntaxTranslator.this, node);
+        } catch (InvocationTargetException e) {
+          ExecutionUtils.propagate(e.getCause());
+        }
+      }
+    });
+    Assert.isNotNull(result, "No result for: " + node.getClass().getCanonicalName());
+    T castedResult = (T) result;
+    result = null;
+    return castedResult;
+  }
+
+  /**
+   * Translates given {@link List} of {@link org.eclipse.jdt.core.dom.Expression} to the
+   * {@link ArgumentList}.
+   */
+  private ArgumentList translateArgumentList(List<?> javaArguments) {
+    List<Expression> arguments = translateExpressionList(javaArguments);
+    return new ArgumentList(null, arguments, null);
+  }
+
+  /**
+   * Translates given {@link List} of {@link org.eclipse.jdt.core.dom.Expression} to the
+   * {@link List} of {@link Expression}s.
+   */
+  private List<Expression> translateExpressionList(List<?> javaArguments) {
+    List<Expression> arguments = Lists.newArrayList();
+    for (Iterator<?> I = javaArguments.iterator(); I.hasNext();) {
+      org.eclipse.jdt.core.dom.Expression javaArg = (org.eclipse.jdt.core.dom.Expression) I.next();
+      Expression dartArg = translate(javaArg);
+      arguments.add(dartArg);
+    }
+    return arguments;
+  }
+
   private Comment translateJavadoc(org.eclipse.jdt.core.dom.BodyDeclaration node) {
     return (Comment) translate(node.getJavadoc());
+  }
+
+  private SimpleIdentifier translateSimpleName(org.eclipse.jdt.core.dom.SimpleName name) {
+    return translate(name);
+  }
+
+  /**
+   * Translates given {@link List} of {@link org.eclipse.jdt.core.dom.Type} to the
+   * {@link TypeArgumentList}.
+   */
+  private TypeArgumentList translateTypeArgumentList(List<?> javaArguments) {
+    List<TypeName> arguments = Lists.newArrayList();
+    for (Iterator<?> I = javaArguments.iterator(); I.hasNext();) {
+      org.eclipse.jdt.core.dom.Type javaArg = (org.eclipse.jdt.core.dom.Type) I.next();
+      TypeName dartArg = translate(javaArg);
+      arguments.add(dartArg);
+    }
+    return new TypeArgumentList(null, arguments, null);
+  }
+
+  /**
+   * Translates given {@link List} of {@link org.eclipse.jdt.core.dom.VariableDeclarationFragment}
+   * to the {@link VariableDeclarationList}.
+   */
+  private VariableDeclarationList traslateVariableDeclarationList(
+      org.eclipse.jdt.core.dom.Type javaType, List<?> javaVars) {
+    List<VariableDeclaration> variableDeclarations = Lists.newArrayList();
+    for (Iterator<?> I = javaVars.iterator(); I.hasNext();) {
+      org.eclipse.jdt.core.dom.VariableDeclarationFragment javaFragment = (org.eclipse.jdt.core.dom.VariableDeclarationFragment) I.next();
+      VariableDeclaration var = translate(javaFragment);
+      variableDeclarations.add(var);
+    }
+    return new VariableDeclarationList(null, (TypeName) translate(javaType), variableDeclarations);
   }
 }

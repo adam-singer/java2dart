@@ -29,9 +29,9 @@ import org.eclipse.jdt.core.dom.CompilationUnit;
 import static org.fest.assertions.Assertions.assertThat;
 
 /**
- * Test that we can translate Java syntax to Dart syntax.
+ * Test for {@link SyntaxTranslator}.
  */
-public class SyntaxTest extends TestCase {
+public class SyntaxTranslatorTest extends TestCase {
 
   /**
    * @return the Dart source of the given {@link com.google.dart.engine.ast.CompilationUnit}.
@@ -40,8 +40,8 @@ public class SyntaxTest extends TestCase {
     return dartUnit.toSource();
   }
 
+  private Context context = new Context();
   private org.eclipse.jdt.core.dom.CompilationUnit javaUnit;
-
   private com.google.dart.engine.ast.CompilationUnit dartUnit;
 
   public void test_classAbstract() throws Exception {
@@ -708,7 +708,7 @@ public class SyntaxTest extends TestCase {
         "}",
         "");
     try {
-      Translator.translate(javaUnit);
+      SyntaxTranslator.translate(context, javaUnit);
       fail();
     } catch (IllegalArgumentException e) {
     }
@@ -995,7 +995,7 @@ public class SyntaxTest extends TestCase {
    * source.
    */
   private void assertDartSource(String... lines) {
-    dartUnit = Translator.translate(javaUnit);
+    dartUnit = SyntaxTranslator.translate(context, javaUnit);
     String actualDartSource = toSource(dartUnit);
     String expectedDartSource = Joiner.on("\n").join(lines);
     assertEquals(expectedDartSource, actualDartSource);

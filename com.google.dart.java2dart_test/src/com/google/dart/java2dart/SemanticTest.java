@@ -17,6 +17,7 @@ package com.google.dart.java2dart;
 import com.google.common.base.Joiner;
 import com.google.common.io.Files;
 import com.google.dart.engine.ast.ASTNode;
+import com.google.dart.engine.ast.CompilationUnit;
 import com.google.dart.engine.utilities.io.PrintStringWriter;
 import com.google.dart.java2dart.util.ToFormattedSourceVisitor;
 
@@ -49,11 +50,8 @@ public class SemanticTest extends TestCase {
   }
 
   private File tmpFolder;
-  private String tmpFolderPath;
-  private org.eclipse.jdt.core.dom.CompilationUnit javaUnit;
-  private com.google.dart.engine.ast.CompilationUnit dartUnit;
 
-  public void test_rename() throws Exception {
+  public void test_buildSingleDartUnit() throws Exception {
     setFileLines(
         "test/Main.java",
         toString(
@@ -61,7 +59,6 @@ public class SemanticTest extends TestCase {
             "package test;",
             "public class Main {",
             "  static void foo() {}",
-            "  static void foo(int p) {}",
             "}",
             ""));
     setFileLines(
@@ -71,33 +68,222 @@ public class SemanticTest extends TestCase {
             "package test;",
             "public class Second {",
             "  static void bar() {",
-            "    Main.foo(42);",
+            "    Main.foo();",
             "  }",
             "}",
             ""));
     Context context = new Context();
     context.addSourceFolder(tmpFolder);
-    System.out.println(context.getSourceFolders());
-    System.out.println(context.getSourceFiles());
-    context.translate();
-//    parseJavaSource("test/Main.java");
-//    parseJavaSource("test/Second.java");
-//    javaUnit.accept(new ASTVisitor() {
-//      @Override
-//      public boolean visit(MethodInvocation node) {
-//        IMethodBinding binding = node.resolveMethodBinding();
-//        System.out.println(binding);
-//        return super.visit(node);
-//      }
-//    });
-    // XXX
+    context.addSourceFiles(tmpFolder);
+    CompilationUnit unit = context.translate();
+    assertEquals(
+        toString(
+            "class Main {",
+            "  static void foo() {",
+            "  }",
+            "}",
+            "class Second {",
+            "  static void bar() {",
+            "    Main.foo();",
+            "  }",
+            "}"),
+        getFormattedSource(unit));
+  }
+
+  public void test_configureRenameField() throws Exception {
+    setFileLines(
+        "test/A.java",
+        toString(
+            "// filler filler filler filler filler filler filler filler filler filler",
+            "package test;",
+            "public class A {",
+            "  int foo;",
+            "  static void foo() {}",
+            "}",
+            ""));
+    setFileLines(
+        "test/B.java",
+        toString(
+            "// filler filler filler filler filler filler filler filler filler filler",
+            "package test;",
+            "public class B {",
+            "  static void bar() {",
+            "    print(A.foo);",
+            "  }",
+            "}",
+            ""));
+    Context context = new Context();
+    context.addSourceFolder(tmpFolder);
+    context.addSourceFiles(tmpFolder);
+    context.addRename("Ltest/A;.foo", "myField");
+    CompilationUnit unit = context.translate();
+    assertEquals(
+        toString(
+            "class A {",
+            "  int myField;",
+            "  static void foo() {",
+            "  }",
+            "}",
+            "class B {",
+            "  static void bar() {",
+            "    print(A.myField);",
+            "  }",
+            "}"),
+        getFormattedSource(unit));
+  }
+
+  public void test_configureRenameMethod() throws Exception {
+    setFileLines(
+        "test/A.java",
+        toString(
+            "// filler filler filler filler filler filler filler filler filler filler",
+            "package test;",
+            "public class A {",
+            "  static void foo() {}",
+            "  static void foo(int p) {}",
+            "}",
+            ""));
+    setFileLines(
+        "test/B.java",
+        toString(
+            "// filler filler filler filler filler filler filler filler filler filler",
+            "package test;",
+            "public class B {",
+            "  static void bar() {",
+            "    A.foo(42);",
+            "  }",
+            "}",
+            ""));
+    Context context = new Context();
+    context.addSourceFolder(tmpFolder);
+    context.addSourceFiles(tmpFolder);
+    context.addRename("Ltest/A;.foo(I)", "fooWithInt");
+    CompilationUnit unit = context.translate();
+    assertEquals(
+        toString(
+            "class A {",
+            "  static void foo() {",
+            "  }",
+            "  static void fooWithInt(int p) {",
+            "  }",
+            "}",
+            "class B {",
+            "  static void bar() {",
+            "    A.fooWithInt(42);",
+            "  }",
+            "}"),
+        getFormattedSource(unit));
+  }
+
+  public void test_giveUniqueName_methodField() throws Exception {
+    setFileLines(
+        "test/Test.java",
+        toString(
+            "// filler filler filler filler filler filler filler filler filler filler",
+            "package test;",
+            "public class Test {",
+            "  private int value;",
+            "  public int value() {",
+            "    return value;",
+            "  }",
+            "  public void bar() {",
+            "    value();",
+            "  }",
+            "}",
+            ""));
+    Context context = new Context();
+    context.addSourceFolder(tmpFolder);
+    context.addSourceFiles(tmpFolder);
+    CompilationUnit unit = context.translate();
+    assertEquals(
+        toString(
+            "class Test {",
+            "  int value2;",
+            "  int value() {",
+            "    return value2;",
+            "  }",
+            "  void bar() {",
+            "    value();",
+            "  }",
+            "}"),
+        getFormattedSource(unit));
+  }
+
+  public void test_giveUniqueName_methods() throws Exception {
+    setFileLines(
+        "test/Test.java",
+        toString(
+            "// filler filler filler filler filler filler filler filler filler filler",
+            "package test;",
+            "public class Test {",
+            "  static void foo() {}",
+            "  static void foo(int p) {}",
+            "  static void foo(double p) {}",
+            "  static void bar() {",
+            "    foo(42);",
+            "  }",
+            "}",
+            ""));
+    Context context = new Context();
+    context.addSourceFolder(tmpFolder);
+    context.addSourceFiles(tmpFolder);
+    CompilationUnit unit = context.translate();
+    assertEquals(
+        toString(
+            "class Test {",
+            "  static void foo() {",
+            "  }",
+            "  static void foo2(int p) {",
+            "  }",
+            "  static void foo3(double p) {",
+            "  }",
+            "  static void bar() {",
+            "    foo2(42);",
+            "  }",
+            "}"),
+        getFormattedSource(unit));
+  }
+
+  public void test_giveUniqueName_variableInitializer() throws Exception {
+    File file = setFileLines(
+        "test/Test.java",
+        toString(
+            "// filler filler filler filler filler filler filler filler filler filler",
+            "package test;",
+            "public class Test {",
+            "  static int foo() {return 42;}",
+            "  static void bar() {",
+            "    int foo = foo();",
+            "    baz(foo);",
+            "  }",
+            "  static void baz(int p) {}",
+            "}",
+            ""));
+    Context context = new Context();
+    context.addSourceFolder(tmpFolder);
+    context.addSourceFile(file);
+    CompilationUnit unit = context.translate();
+    // TODO(scheglov)
+//    assertEquals(
+//        toString(
+//            "class Test {",
+//            "  static int foo() {",
+//            "    return 42;",
+//            "  }",
+//            "  static void bar() {",
+//            "    int foo2 = foo();",
+//            "    baz(foo2);",
+//            "  }",
+//            "  static void baz(int p) {",
+//            "  }",
+//            "}"),
+//        getFormattedSource(unit));
   }
 
   @Override
   protected void setUp() throws Exception {
     super.setUp();
     tmpFolder = Files.createTempDir();
-    tmpFolderPath = tmpFolder.getCanonicalPath();
   }
 
   @Override
@@ -140,9 +326,10 @@ public class SemanticTest extends TestCase {
   /**
    * Sets the content of the file with given path relative to {@link #tmpFolder}.
    */
-  private void setFileLines(String path, String content) throws Exception {
+  private File setFileLines(String path, String content) throws Exception {
     File toFile = new File(tmpFolder, path);
     Files.createParentDirs(toFile);
     Files.write(content, toFile, Charsets.UTF_8);
+    return toFile;
   }
 }

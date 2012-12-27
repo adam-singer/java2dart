@@ -365,16 +365,14 @@ public class SyntaxTranslator extends org.eclipse.jdt.core.dom.ASTVisitor {
           null,
           init));
     }
-    VariableDeclarationList fieldList = new VariableDeclarationList(null, type, variables);
-    // TODO(scheglov) move "final" to constructor
-    FieldDeclaration fieldDeclaration = new FieldDeclaration(
+    Token tokenStatic = new KeywordToken(Keyword.STATIC, 0);
+    Token tokenFinal = new KeywordToken(Keyword.FINAL, 0);
+    return done(new FieldDeclaration(
         translateJavadoc(node),
         null,
-        new KeywordToken(Keyword.STATIC, 0),
-        fieldList,
-        null);
-    fieldDeclaration.setFinalKeyword(new KeywordToken(Keyword.FINAL, 0));
-    return done(fieldDeclaration);
+        tokenStatic,
+        new VariableDeclarationList(tokenFinal, type, variables),
+        null));
   }
 
   @Override
@@ -435,18 +433,15 @@ public class SyntaxTranslator extends org.eclipse.jdt.core.dom.ASTVisitor {
 
   @Override
   public boolean visit(org.eclipse.jdt.core.dom.FieldDeclaration node) {
+    boolean isFinal = org.eclipse.jdt.core.dom.Modifier.isFinal(node.getModifiers());
     FieldDeclaration fieldDeclaration = new FieldDeclaration(
         translateJavadoc(node),
         null,
         null,
-        traslateVariableDeclarationList(node.getType(), node.fragments()),
+        translateVariableDeclarationList(isFinal, node.getType(), node.fragments()),
         null);
     if (org.eclipse.jdt.core.dom.Modifier.isStatic(node.getModifiers())) {
-      fieldDeclaration.setStaticKeyword(new KeywordToken(Keyword.STATIC, 0));
-    }
-    // TODO(scheglov) move "final" to constructor
-    if (org.eclipse.jdt.core.dom.Modifier.isFinal(node.getModifiers())) {
-      fieldDeclaration.setFinalKeyword(new KeywordToken(Keyword.FINAL, 0));
+      fieldDeclaration.setKeyword(new KeywordToken(Keyword.STATIC, 0));
     }
     return done(fieldDeclaration);
   }
@@ -601,7 +596,6 @@ public class SyntaxTranslator extends org.eclipse.jdt.core.dom.ASTVisitor {
 
   @Override
   public boolean visit(org.eclipse.jdt.core.dom.MethodDeclaration node) {
-    org.eclipse.jdt.core.dom.IMethodBinding binding = node.resolveBinding();
     // parameters
     FormalParameterList parameterList;
     {
@@ -1003,7 +997,8 @@ public class SyntaxTranslator extends org.eclipse.jdt.core.dom.ASTVisitor {
 
   @Override
   public boolean visit(org.eclipse.jdt.core.dom.VariableDeclarationStatement node) {
-    return done(new VariableDeclarationStatement(traslateVariableDeclarationList(
+    return done(new VariableDeclarationStatement(translateVariableDeclarationList(
+        false,
         node.getType(),
         node.fragments()), null));
   }
@@ -1104,7 +1099,7 @@ public class SyntaxTranslator extends org.eclipse.jdt.core.dom.ASTVisitor {
    * Translates given {@link List} of {@link org.eclipse.jdt.core.dom.VariableDeclarationFragment}
    * to the {@link VariableDeclarationList}.
    */
-  private VariableDeclarationList traslateVariableDeclarationList(
+  private VariableDeclarationList translateVariableDeclarationList(boolean isFinal,
       org.eclipse.jdt.core.dom.Type javaType, List<?> javaVars) {
     List<VariableDeclaration> variableDeclarations = Lists.newArrayList();
     for (Iterator<?> I = javaVars.iterator(); I.hasNext();) {
@@ -1112,6 +1107,10 @@ public class SyntaxTranslator extends org.eclipse.jdt.core.dom.ASTVisitor {
       VariableDeclaration var = translate(javaFragment);
       variableDeclarations.add(var);
     }
-    return new VariableDeclarationList(null, (TypeName) translate(javaType), variableDeclarations);
+    Token tokenFinal = isFinal ? new KeywordToken(Keyword.FINAL, 0) : null;
+    return new VariableDeclarationList(
+        tokenFinal,
+        (TypeName) translate(javaType),
+        variableDeclarations);
   }
 }

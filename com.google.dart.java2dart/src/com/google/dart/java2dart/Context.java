@@ -111,7 +111,13 @@ public class Context {
    * Remembers that "identifier" is reference to the given Java binding.
    */
   void putReference(org.eclipse.jdt.core.dom.IBinding binding, SimpleIdentifier identifier) {
-    String key = binding.getKey();
+    String key = null;
+    if (binding != null) {
+      key = binding.getKey();
+    }
+    if (key == null) {
+      key = identifier.getName();
+    }
     // remember binding for reference
     identifierToBinding.put(identifier, key);
     // add reference to binding

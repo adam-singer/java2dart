@@ -24,35 +24,33 @@ import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.dom.AST;
 import org.eclipse.jdt.core.dom.ASTParser;
 
-import java.io.File;
+import java.io.FileWriter;
+import java.io.Writer;
 
 public class Main {
   public static void main(String[] args) throws Exception {
-    if (args.length != 2) {
-      printUsage();
-    }
-    String folderName = args[0];
-    String fileName = args[1];
-    File folder = new File(folderName);
-    File file = new File(fileName);
-    if (!folder.exists() || !folder.isDirectory()) {
-      System.out.println("Folder does not exist: " + folderName);
+    Config config = Config.from(args);
+    if (config == null) {
       System.exit(1);
     }
-    if (!file.exists() || !file.isFile()) {
-      System.out.println("File does not exist: " + fileName);
-      System.exit(1);
-    }
-    //
-    Context context = new Context();
-    context.addSourceFolder(folder);
-    context.addSourceFile(file);
+    Context context = config.getContext();
 //    String javaSource = Files.toString(file, Charset.forName("UTF-8"));
 //    org.eclipse.jdt.core.dom.CompilationUnit javaUnit = parseJava(javaSource);
 //    Context context = new Context();
 //    CompilationUnit dartUnit = SyntaxTranslator.translate(context, javaUnit);
     CompilationUnit dartUnit = context.translate();
-    System.out.println(getFormattedSource(dartUnit));
+    String dartSource = getFormattedSource(dartUnit);
+    if (config.getOutputFile() == null) {
+      System.out.println(dartSource);
+      return;
+    }
+    Writer writer = new FileWriter(config.getOutputFile());
+    try {
+      writer.write(dartSource);
+    } finally {
+      writer.close();
+    }
+    System.out.println("Wrote " + config.getOutputFile());
   }
 
   /**
@@ -73,10 +71,5 @@ public class Main {
         JavaCore.ENABLED));
     parser.setSource(source.toCharArray());
     return (org.eclipse.jdt.core.dom.CompilationUnit) parser.createAST(null);
-  }
-
-  private static void printUsage() {
-    System.out.println("Usage: java2dart <source-folder> <file>");
-    System.exit(1);
   }
 }

@@ -15,7 +15,6 @@
 package com.google.dart.java2dart;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.io.Files;
 import com.google.dart.engine.ast.ASTNode;
 import com.google.dart.engine.ast.CompilationUnit;
 import com.google.dart.engine.utilities.io.PrintStringWriter;
@@ -26,24 +25,33 @@ import org.eclipse.jdt.core.dom.AST;
 import org.eclipse.jdt.core.dom.ASTParser;
 
 import java.io.File;
-import java.nio.charset.Charset;
 
 public class Main {
   public static void main(String[] args) throws Exception {
-    if (args.length != 1) {
+    if (args.length != 2) {
       printUsage();
     }
-    String fileName = args[0];
+    String folderName = args[0];
+    String fileName = args[1];
+    File folder = new File(folderName);
     File file = new File(fileName);
+    if (!folder.exists() || !folder.isDirectory()) {
+      System.out.println("Folder does not exist: " + folderName);
+      System.exit(1);
+    }
     if (!file.exists() || !file.isFile()) {
       System.out.println("File does not exist: " + fileName);
       System.exit(1);
     }
     //
-    String javaSource = Files.toString(file, Charset.forName("UTF-8"));
-    org.eclipse.jdt.core.dom.CompilationUnit javaUnit = parseJava(javaSource);
     Context context = new Context();
-    CompilationUnit dartUnit = SyntaxTranslator.translate(context, javaUnit);
+    context.addSourceFolder(folder);
+    context.addSourceFile(file);
+//    String javaSource = Files.toString(file, Charset.forName("UTF-8"));
+//    org.eclipse.jdt.core.dom.CompilationUnit javaUnit = parseJava(javaSource);
+//    Context context = new Context();
+//    CompilationUnit dartUnit = SyntaxTranslator.translate(context, javaUnit);
+    CompilationUnit dartUnit = context.translate();
     System.out.println(getFormattedSource(dartUnit));
   }
 
@@ -68,7 +76,7 @@ public class Main {
   }
 
   private static void printUsage() {
-    System.out.println("Usage: java2dart <file>");
+    System.out.println("Usage: java2dart <source-folder> <file>");
     System.exit(1);
   }
 }

@@ -335,9 +335,9 @@ public class ToFormattedSourceVisitor implements ASTVisitor<Void> {
     NodeList<Directive> directives = node.getDirectives();
     visit(scriptTag);
     String prefix = scriptTag == null ? "" : " ";
-    visitList(prefix, directives, " ");
+    visitList(prefix, directives, "\n");
     prefix = scriptTag == null && directives.isEmpty() ? "" : " ";
-    visitList(prefix, node.getDeclarations(), " ");
+    visitList(prefix, node.getDeclarations(), "\n");
     return null;
   }
 
@@ -465,8 +465,7 @@ public class ToFormattedSourceVisitor implements ASTVisitor<Void> {
   @Override
   public Void visitFieldDeclaration(FieldDeclaration node) {
     visit(node.getDocumentationComment());
-    visit(node.getStaticKeyword(), " ");
-    visit(node.getFinalKeyword(), " ");
+    visit(node.getKeyword(), " ");
     visit(node.getFields());
     writer.print(";");
     return null;

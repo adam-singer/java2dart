@@ -649,7 +649,7 @@ public class SyntaxTranslatorTest extends TestCase {
         "    assert 1 == 2;",
         "  }",
         "}");
-    assertDartSource("class A {A() {assert(1 == 2);}}");
+    assertDartSource("class A {A() {assert (1 == 2);}}");
   }
 
   public void test_statementBreak() throws Exception {
